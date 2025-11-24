@@ -1,12 +1,7 @@
-import { getTimestampTag } from './lrcutils'
-import './lyrics.scss'
-import sqs, { sqsa } from './safeQuerySelector'
+import './styles/lyrics.scss'
 
-interface LyricsLine {
-    time: number
-    index: number
-    text: string
-}
+import { getTimestampTag } from './lrcutils'
+import sqs, { sqsa } from './safeQuerySelector'
 
 const playerSettings = {
     editingMode: true,
@@ -16,91 +11,6 @@ const audio = sqs('#audioPlayer') as HTMLAudioElement
 
 let lastUpdateTimestamp = performance.now()
 const updateInterval = 10 // ms
-
-const lyricsElement = sqs('#lyrics') as HTMLDivElement
-let lyricsLines: LyricsLine[] = []
-let lyricsText: string = ''
-
-// parse the lyrics file
-const parseLoadLyricsText = () => {
-    // keep track of count of the actual lines
-    let index = 0
-
-    console.log('Parsing lyrics...')
-
-    lyricsElement.innerHTML =
-        `
-        <div class="header">
-            <h1 class="author"></h1>
-            <h1 class="title"></h1>
-        </div>
-        `.trim()
-
-    lyricsText
-        .split('\n')
-        .forEach(line => {
-            // parse line with the timestamp regex - [mm:ss..*?]<text>
-            const match = line.match(/\[(\d{2}):(\d{2}\..*?)\](.*)/)
-
-            // check if matched
-            if (match) {
-                const minutes = parseInt(match[1], 10)
-                const seconds = parseFloat(match[2])
-
-                // parse time into seconds
-                const time = minutes * 60 + seconds
-
-                // prevent HTML injection
-                const text = match[3].trim().length > 0 ? match[3].replaceAll(/\<.*?\>/gmi, '').trim() : '♪'
-                lyricsLines.push({ time, index, text })
-
-                index++
-            } else {
-                // match lrc title
-                const author = line.match(/\[ar:(.*)\]/)
-                const title = line.match(/\[ti:(.*)\]/)
-
-                // @ts-ignore
-                if (author) sqs('#lyrics .header .author').innerText = author[1].trim()
-
-                // @ts-ignore
-                if (title) sqs('#lyrics .header .title').innerText = title[1].trim()
-            }
-        })
-
-    // insert all lines into the lyrics element
-    lyricsElement.innerHTML += lyricsLines.map(line =>
-        `<p
-            class="lyricsLine"
-            data-time="${line.time}"
-            data-index="${line.index}"
-            style="animation-delay: ${line.index * 0.01}s;"
-        >
-            ${playerSettings.editingMode ? `<span class="timestamp">${getTimestampTag(line.time)}</span>` : ''}<span>${line.text}</span>
-        </p>`.trim()
-    ).join('')
-
-    lyricsElement.innerHTML += '<h2 class="theEnd">- THE END -</h2>'
-
-    lyricsElement
-        .querySelectorAll('.lyricsLine')
-        .forEach(p => {
-            p.addEventListener('click', () => {
-                audio.currentTime = parseFloat(p.getAttribute('data-time')!)
-
-                if (playerSettings.editingMode) setLyricsEditorLineIndex(parseInt(p.getAttribute('data-index')!))
-
-                syncLyrics()
-            })
-        })
-
-    if (playerSettings.editingMode) updateEditorLineIndicator()
-}
-
-const resetLyrics = () => {
-    lyricsLines = []
-    lyricsElement.innerHTML = ''
-}
 
 //
 // initiaize player controls
@@ -144,13 +54,6 @@ const updateProgressIndicators = () => {
     // @ts-ignore
     sqs('#player-label-progress .currentTime').innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
-/* progressSlider.addEventListener('change', () => {
-    const time = (parseFloat(progressSlider.value) / 100) * audio.duration
-    const minutes = Math.floor(time / 60)
-    const seconds = Math.floor(time % 60).toString().padStart(2, '0')
-
-    progresLabel.innerText = `${minutes}:${seconds}`
-}) */
 
 progressSlider.addEventListener('input', () => {
     audio.currentTime = (parseFloat(progressSlider.value) / 100) * audio.duration
@@ -214,7 +117,7 @@ const tryLoadAudioFile = () => {
         audio.innerHTML = `<source src="${reader.result}" type="${file.type}">`
         audio.load()
 
-        console.log('loaded')
+        console.log(`${file.name} loaded.`)
     }
 
     reader.readAsDataURL(file)
@@ -234,7 +137,7 @@ const tryLoadLyricsFile = () => {
             lyricsText = text
             parseLoadLyricsText()
 
-            console.log('loaded')
+            console.log(`${file.name} loaded.`)
         })
 
     lyricsFileInput.value = ''
