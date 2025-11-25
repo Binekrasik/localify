@@ -27,12 +27,10 @@ export class LyricsEditor {
             const p = document.querySelector(`p[data-index="${this.state.indicatorIndex}"]`)
             if (!p || !(p instanceof HTMLParagraphElement)) return
 
-            console.log(`New line at ${time}s`)
-            // element.style = "background: red;"
+            const lineTimestamp = sqs(`#lyrics p[data-index="${this.state.indicatorIndex}"] .timestamp`) as HTMLSpanElement
 
-            sqs(`#lyrics p[data-index="${this.state.indicatorIndex}"] .timestamp`).innerText = getTimestampTag(time)
-
-            sqs(`#lyrics p[data-index="${this.state.indicatorIndex}"] .timestamp`).setAttribute('data-modified', 'true')
+            lineTimestamp.innerText = getTimestampTag(time)
+            lineTimestamp.setAttribute('data-modified', 'true')
 
             this.state.indicatorIndex++
 
@@ -91,7 +89,8 @@ export class LyricsEditor {
             const x = p.offsetTop
             const y = p.offsetLeft - 15
 
-            sqs('#lyrics-editor-line-indicator').style = `top: ${x}px; left: ${y}px; height: ${p.offsetHeight}px;`
+            const indicator = sqs('#lyrics-editor-line-indicator') as HTMLParagraphElement
+            indicator.style = `top: ${x}px; left: ${y}px; height: ${p.offsetHeight}px;`
         } catch (e) {
             console.warn('No line indicator .')
         }

@@ -1,0 +1,25 @@
+@use './colors.scss' as colors;
+
+#queueContainer {
+    display: flex;
+    flex-direction: column;
+    
+    position: sticky;
+    
+    top: 0;
+    right: 0;
+
+    height: 100%;
+    width: 30vw;
+
+    border-left: 1px solid rgba(colors.$foreground, .1);
+    padding: 1.5rem;
+    margin-left: 20px;
+
+    h1, h2, h3, h4, p {
+        color: rgba(colors.$foreground, .5);
+        
+        font-weight: 600;
+        margin: 0;
+    }
+}

@@ -1,10 +1,12 @@
 import sqs from '../../safeQuerySelector';
 import { Manager } from '../Manager';
+import type { Track } from '../queue/Track';
 import { Managers } from '../state/Managers';
 
 export class PlayerManager extends Manager {
     state = {
         isPlaying: false,
+        playOnNextTrackLoad: true,
     }
 
     controls = {
@@ -14,6 +16,7 @@ export class PlayerManager extends Manager {
         syncButton: sqs('#player-button-sync') as HTMLButtonElement,
         backwardButton: sqs('#player-button-backward') as HTMLButtonElement,
         forwardButton: sqs('#player-button-forward') as HTMLButtonElement,
+        playNextButton: sqs('#player-button-play-next') as HTMLButtonElement,
     }
 
     audioElement = sqs('#audioPlayer') as HTMLAudioElement
@@ -32,6 +35,12 @@ export class PlayerManager extends Manager {
         
             // @ts-ignore
             sqs('#player-label-progress .endTime').innerText = `${minutes}:${seconds}`
+
+            if (this.state.playOnNextTrackLoad) {
+                this.audioElement.play()
+                this.state.playOnNextTrackLoad = false
+            }
+
             this.UpdatePlayButtonState()
         })
 
@@ -76,6 +85,10 @@ export class PlayerManager extends Manager {
         this.controls.forwardButton.addEventListener('click', () => Managers.LyricsManager.SyncLyrics())
         this.controls.forwardButton.addEventListener('click', () => {
             this.audioElement.currentTime = Math.min(this.audioElement.currentTime + 1, this.audioElement.duration)
+        })
+
+        this.controls.playNextButton.addEventListener('click', () => {
+            Managers.QueueManager.PlayNextTrack()
         })
 
         document.addEventListener('keydown', (e) => {
@@ -129,6 +142,14 @@ export class PlayerManager extends Manager {
         }
 
         reader.readAsDataURL(file)
+    }
+
+    LoadTrack (track: Track, playOnLoad: boolean = false) {
+        this.state.playOnNextTrackLoad = playOnLoad
+        this.LoadAudioFile(track.audioFile)
+
+        if (track.lyricsFile)
+            Managers.LyricsManager.LoadFromFile(track.lyricsFile)
     }
 
     UpdateProgressIndicators () {

@@ -1,0 +1,51 @@
+@forward './lyrics.scss';
+@forward './player.scss';
+@forward './queue.scss';
+
+@use './colors.scss' as colors;
+
+@keyframes animation-lyric-slideIn {
+    0% {
+        opacity: 0;
+        transform: translateX(-40px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+body {
+    font-family: 'Instrument Sans';
+    background: colors.$background;
+    color: colors.$foreground;
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+::selection {
+    background: rgba(colors.$foreground, .3);
+    color: colors.$foreground;
+}
+
+#app {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    height: 100%;
+
+    #contentContainer {
+        display: flex;
+        position: relative;
+        width: 100%;
+        
+        .mainContainer {
+            flex: 1;
+        }
+    }
+}

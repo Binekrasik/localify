@@ -1,17 +1,25 @@
 <!doctype html>
 <html lang="en">
-  <head>
+
+<head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>localify</title>
-  </head>
-  <body>
+</head>
+
+<body>
     <div id="app">
-        <div class="contentContainer">
-            <div id="lyricsContainer">
+        <div id="contentContainer">
+            <div id="lyricsContainer" class="mainContainer">
                 <div id="lyrics-editor-line-indicator"></div>
                 <div id="lyrics"></div>
+            </div>
+
+            <div id="queueContainer">
+                <h1>Queue</h1>
+
+                <div id="queue"></div>
             </div>
         </div>
 
@@ -19,32 +27,43 @@
             <audio preload="auto" id="audioPlayer"></audio>
 
             <!-- player controls -->
-            <button id="player-button-reset-lyrics">rset</button>
+            <!-- <button id="player-button-reset-lyrics">rset</button>
             <button id="player-button-mark-timestamp">mark</button>
             <button id="player-button-prev-timestamp">prev</button>
-            <button id="player-button-next-timestamp">next</button>
+            <button id="player-button-next-timestamp">next</button> -->
+
             <button id="player-button-sync">sync</button>
             <button id="player-button-backward">-1</button>
             <button id="player-button-play">▶</button>
             <button id="player-button-forward">+1</button>
-            <label id="player-label-progress">
-                <p><span class="currentTime">0:00</span> - <span class="endTime">0:00</span></p>
-                <input id="player-slider-progress" type="range" min="0" max="100" value="0"/>
-            </label>
-            <input id="player-slider-volume" type="range" min="0" max="100" value="50"/>
 
-            <label>
-                Audio
-                <input type="file" accept=".mp3,.wav,.ogg,.flac,.m4a" id="player-file-audio" />
+            <div class="sliders">
+                <label id="player-label-progress">
+                    <p><span class="currentTime">0:00</span> - <span class="endTime">0:00</span></p>
+                    <input id="player-slider-progress" type="range" min="0" max="100" value="0" />
+                </label>
+
+                <label id="player-label-progress">
+                    <p>Volume</p>
+                    <input id="player-slider-volume" type="range" min="0" max="100" value="50" />
+                </label>
+            </div>
+
+            <label data-type="file">
+                Choose audio
+                <input type="file" accept=".mp3,.wav,.ogg,.flac,.m4a" id="player-file-audio" multiple />
             </label>
-            
-            <label>
-                Lyrics
-                <input type="file" accept=".lrc" id="player-file-lyrics">
+
+            <label data-type="file">
+                Choose lyrics
+                <input type="file" accept=".lrc" id="player-file-lyrics" multiple>
             </label>
+
+            <button id="player-button-play-next">play next</button>
         </div>
     </div>
 
     <script type="module" src="/src/app.ts"></script>
-  </body>
+</body>
+
 </html>

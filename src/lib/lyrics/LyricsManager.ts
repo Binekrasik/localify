@@ -19,7 +19,7 @@ export class LyricsManager extends Manager {
 
     Initialize(): void {
         this.#InitHooks()
-        this.#lyricsEditor.Enable()
+        // this.#lyricsEditor.Enable()
     }
 
     #InitHooks (): void {
@@ -125,7 +125,7 @@ export class LyricsManager extends Manager {
                 })
             })
     
-        this.#lyricsEditor.UpdateLineIndicator()
+        // this.#lyricsEditor.UpdateLineIndicator()
     }
 
     SyncLyrics () {
