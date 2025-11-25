@@ -1,5 +1,5 @@
-import { getTimestampTag } from '../../lrcutils'
-import sqs, { sqsa } from '../../safeQuerySelector'
+import { getTimestampTag } from './lrcutils'
+import sqs, { sqsa } from '../safeQuerySelector'
 import { Manager } from '../Manager'
 import { Managers } from '../state/Managers'
 import { LyricsEditor } from './LyricsEditor'

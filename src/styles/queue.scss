@@ -16,10 +16,26 @@
     padding: 1.5rem;
     margin-left: 20px;
 
+    #queue {
+        display: flex;
+        flex-direction: column;
+
+        position: sticky;
+
+        top: 0;
+        right: 0;
+
+        gap: 1rem;
+    }
+
     h1, h2, h3, h4, p {
         color: rgba(colors.$foreground, .5);
         
         font-weight: 600;
         margin: 0;
+    }
+
+    .queueItem {
+        background: rgba(colors.$foreground, .1);
     }
 }

@@ -1,6 +1,6 @@
-import sqs from '../../safeQuerySelector';
+import sqs from '../safeQuerySelector';
 import { Manager } from '../Manager';
-import type { Track } from '../queue/Track';
+import type { Track } from '../track/Track';
 import { Managers } from '../state/Managers';
 
 export class PlayerManager extends Manager {
