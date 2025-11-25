@@ -16,10 +16,11 @@
                 <div id="lyrics"></div>
             </div>
 
-            <div id="queueContainer">
-                <h1>Queue</h1>
 
-                <div id="queue"></div>
+            <div id="queueContainer">
+                <div id="queue">
+                    <h1>Queue</h1>
+                </div>
             </div>
         </div>
 
@@ -31,11 +32,12 @@
             <button id="player-button-mark-timestamp">mark</button>
             <button id="player-button-prev-timestamp">prev</button>
             <button id="player-button-next-timestamp">next</button> -->
-
-            <button id="player-button-sync">sync</button>
-            <button id="player-button-backward">-1</button>
-            <button id="player-button-play">▶</button>
-            <button id="player-button-forward">+1</button>
+            <div class="controls">
+                <button id="player-button-sync">sync</button>
+                <button id="player-button-backward">-1</button>
+                <button id="player-button-play">▶</button>
+                <button id="player-button-forward">+1</button>
+            </div>
 
             <div class="sliders">
                 <label id="player-label-progress">
@@ -49,22 +51,25 @@
                 </label>
             </div>
 
-            <label data-type="file">
-                Choose audio
-                <input type="file" accept=".mp3,.wav,.ogg,.flac,.m4a" id="player-file-audio" multiple />
-            </label>
+            <div class="queueControls">
+                <label data-type="file">
+                    audio
+                    <input type="file" accept=".mp3,.wav,.ogg,.flac,.m4a" id="player-file-audio" multiple />
+                </label>
 
-            <label data-type="file">
-                Choose lyrics
-                <input type="file" accept=".lrc" id="player-file-lyrics" multiple>
-            </label>
+                <label data-type="file">
+                    lycs
+                    <input type="file" accept=".lrc" id="player-file-lyrics" multiple>
+                </label>
 
-            <label data-type="file">
-                Add to queue
-                <input type="file" accept=".lrc,.mp3,.wav,.ogg,.flac,.m4a,.opus" id="player-add-to-queue" multiple />
-            </label>
+                <label data-type="file">
+                    qadd
+                    <input type="file" accept=".lrc,.mp3,.wav,.ogg,.flac,.m4a,.opus" id="player-add-to-queue"
+                        multiple />
+                </label>
 
-            <button id="player-button-play-next">play next</button>
+                <button id="player-button-play-next">next</button>
+            </div>
         </div>
     </div>
 

@@ -2,7 +2,7 @@ import sqs from '../safeQuerySelector'
 import { Manager } from '../Manager'
 import { Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
-import { parseCoverImage } from '../track/parseImage'
+import { parseAudioFile } from '../track/parseImage'
 
 export class QueueManager extends Manager {
     queue: Track[] = []
@@ -10,7 +10,7 @@ export class QueueManager extends Manager {
     #addToQueueInput = sqs('#player-add-to-queue') as HTMLInputElement
 
     Initialize() {
-        this.#queueListElement.innerHTML = ''
+        // this.#queueListElement.innerHTML = ''
         this.#initHooks()
     }
 
@@ -33,11 +33,11 @@ export class QueueManager extends Manager {
                             return file.name
                                 .toLowerCase()
                                 .startsWith(match[1])
-                            && file.name.toLowerCase().endsWith('.lrc')
+                                && file.name.toLowerCase().endsWith('.lrc')
                         })
 
-                    parseCoverImage(audioFile).then(image => {
-                        this.AddToQueue({ audioFile: audioFile, coverImage: image || undefined, lyricsFile: lyricsFile })
+                    parseAudioFile(audioFile).then(track => {
+                        this.AddToQueue({ ...track, lyricsFile: lyricsFile || undefined })
                     })
                 })
 
@@ -47,19 +47,41 @@ export class QueueManager extends Manager {
     }
 
     AddToQueue(track: Track) {
-        this.queue.push(track)
-
         const trackElement = document.createElement('div')
         trackElement.classList.add('queueItem')
-        trackElement.innerHTML = `<img src="${track.coverImage ? track.coverImage : ''}" width="200" alt="idk" ><p>${track.audioFile.name}</p><p>${track.lyricsFile ? track.lyricsFile.name : 'No lyrics'}</p>`
+        trackElement.setAttribute('data-playing', track.isPlaying ? 'true' : 'false')
+        trackElement.innerHTML = `
+            <img src="${track.coverImage ? track.coverImage : ''}" alt="No image" >
+            <div class="trackInfo">
+                <p class="name">${track.title}</p>
+                <p class="lyricsStatus" data-loaded="${track.lyricsFile ? 'true' : 'false'}">${track.lyricsFile ? 'lyrics loaded' : 'no lyrics'}</p>
+            </div>
+`
         this.#queueListElement.appendChild(trackElement)
+        this.queue.push({...track, domElement: trackElement})
     }
 
-    PlayNextTrack() {
-        const track = this.queue.shift()
+    PlayCurrentTrack() {
+        const track = this.queue[0]
         if (!track) return
 
         Managers.PlayerManager.LoadTrack(track, true)
-        this.#queueListElement.removeChild(this.#queueListElement.firstChild!)
+        this.#queueListElement.querySelectorAll('.queueItem')[0].setAttribute('data-playing', 'true')
+    }
+
+    PlayNextTrack() {
+        console.log('Playing next track in queue.')
+
+        if (this.queue.length > 0)
+            if (this.queue[0].isPlaying) {
+                const removed = this.queue.shift()
+                removed?.domElement!.remove()
+            }
+
+        if (this.queue.length === 0) return
+
+        this.queue[0].isPlaying = true
+        this.queue[0].domElement!.setAttribute('data-playing', 'true')
+        Managers.PlayerManager.LoadTrack(this.queue[0], true)
     }
 }
