@@ -30,8 +30,8 @@ export class PlayerManager extends Manager {
         this.audioElement.addEventListener('loadeddata', () => {
             this.SetControlsEnabled(true)
         
-            const minutes = Math.floor(this.audioElement.duration / 60)
-            const seconds = Math.floor(this.audioElement.duration % 60).toString().padStart(2, '0')
+            const minutes = Math.round(this.audioElement.duration / 60)
+            const seconds = Math.round(this.audioElement.duration % 60).toString().padStart(2, '0')
         
             // @ts-ignore
             sqs('#player-label-progress .endTime').innerText = `${minutes}:${seconds}`
