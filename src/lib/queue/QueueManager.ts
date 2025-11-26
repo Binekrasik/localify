@@ -10,12 +10,12 @@ export class QueueManager extends Manager {
     #queueListElement = sqs('#queue') as HTMLDivElement
     #addToQueueInput = sqs('#player-add-to-queue') as HTMLInputElement
 
-    Initialize() {
+    Initialize () {
         // this.#queueListElement.innerHTML = ''
         this.#initHooks()
     }
 
-    #initHooks() {
+    #initHooks () {
         this.#addToQueueInput.addEventListener('change', event => {
             const target = event.target as HTMLInputElement
             const files = target.files
@@ -57,7 +57,7 @@ export class QueueManager extends Manager {
         }).observe(this.#queueListElement, { childList: true })
     }
 
-    AddToQueue(track: Track) {
+    AddToQueue (track: Track) {
         const trackElement = document.createElement('div')
         trackElement.classList.add('queueItem')
         trackElement.setAttribute('data-playing', track.isPlaying ? 'true' : 'false')
@@ -72,7 +72,7 @@ export class QueueManager extends Manager {
         this.queue.push({...track, domElement: trackElement})
     }
 
-    PlayCurrentTrack() {
+    PlayCurrentTrack () {
         const track = this.queue[0]
         if (!track) return
 
@@ -80,7 +80,19 @@ export class QueueManager extends Manager {
         this.#queueListElement.querySelectorAll('.queueItem')[0].setAttribute('data-playing', 'true')
     }
 
-    PlayNextTrack() {
+    RemoveTrackElement (element: HTMLElement) {
+        element.setAttribute('data-removed', 'true')
+        element.style.top = `${element.offsetTop}px`
+        element.style.left = `${element.offsetLeft}px`
+        element.style.position = 'absolute'
+
+        Managers.UpdateManager.CreateTimer({
+            callback: () => { element.remove() },
+            timeout: 1000,
+        })
+    }
+
+    PlayNextTrack () {
         console.log('Playing next track in queue.')
 
         Managers.LyricsManager.ResetLyrics()
@@ -89,7 +101,7 @@ export class QueueManager extends Manager {
         if (this.queue.length > 0)
             if (this.queue[0].isPlaying) {
                 const removed = this.queue.shift()
-                removed?.domElement!.remove()
+                this.RemoveTrackElement(removed?.domElement!)
             }
 
         if (this.queue.length === 0) return

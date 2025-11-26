@@ -35,6 +35,8 @@ export class LyricsManager extends Manager {
         document.addEventListener('touchmove', () => this.UnsyncLyrics())
 
         Managers.UpdateManager.AddUpdateListener(() => this.UpdateSyncedLyrics())
+
+        this.ParseLoadLyricsText('[ar: no lyrics]\n[ti: There\'s absolutely nothing lol]')
     }
 
     /**

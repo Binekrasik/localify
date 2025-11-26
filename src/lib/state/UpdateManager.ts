@@ -1,12 +1,50 @@
 import { Manager } from '../Manager'
+import type { Timer } from './Timer'
 
 export class UpdateManager extends Manager {
     static DoUpdates = true
     listeners: Array<() => void> = []
+    timers: Timer[] = []
 
     state = {
-        lastUpdateTimestamp: 0,
-        updateInterval: 10, // in ms
+        lastUpdateTimestamp: 0, // do not touch
+        updateInterval: 1000 / 100, // tick interval in milliseconds; default is 100x a second (10ms)
+    }
+
+    /**
+     * Creates a timer running within the internal ticker.
+     */
+    CreateTimer (timer: Timer): void {
+        timer.timeRemaining = timer.timeout
+        this.timers.push(timer)
+    }
+
+    /**
+     * Iterates and ticks all registered timers.
+     * @param delta time since the last tick in milliseconds
+     */
+    #TickTimers (delta: number) {
+        this.timers.forEach((timer, index) => {
+            // remove the timer if it's not correctly configured
+            if (!timer.timeRemaining) {
+                console.warn('Cannot tick an invalid timer.')
+                this.timers.splice(index, 1)
+                
+                return
+            }
+
+            // tick the timer
+            timer.timeRemaining -= delta
+            
+            if (timer.timeRemaining <= 0) {
+                timer.callback()
+                
+                if (timer.iterations && timer.iterations > 1){
+                    timer.iterations--
+                    timer.timeRemaining = timer.timeout
+                } else this.timers.splice(index, 1)
+            }
+        })
     }
     
     Initialize () {
@@ -16,8 +54,11 @@ export class UpdateManager extends Manager {
 
     Update() {
         window.requestAnimationFrame(timestamp => {
-            if (timestamp - this.state.lastUpdateTimestamp >= this.state.updateInterval && UpdateManager.DoUpdates) {
-                this.CallListeners()
+            const deltaTime = timestamp - this.state.lastUpdateTimestamp
+
+            if (deltaTime >= this.state.updateInterval && UpdateManager.DoUpdates) {
+                this.#CallListeners()
+                this.#TickTimers(deltaTime)
 
                 this.state.lastUpdateTimestamp = timestamp
             }
@@ -26,7 +67,7 @@ export class UpdateManager extends Manager {
         })
     }
 
-    CallListeners() {
+    #CallListeners() {
         this.listeners.forEach(listener => listener())
     }
 

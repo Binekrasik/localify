@@ -10,8 +10,15 @@ body {
     color: colors.$foreground;
     height: 100vh;
     margin: 0;
+
+    overflow-x: hidden;
+
     display: flex;
     flex-direction: column;
+}
+
+::-webkit-scrollbar {
+    width: 0px;
 }
 
 * {

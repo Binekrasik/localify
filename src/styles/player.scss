@@ -1,7 +1,24 @@
 @use './colors.scss' as colors;
 
+#app[data-zen="true"] {
+    #player[data-respect-zen="true"] {
+        background: rgba(colors.$foreground, .05);
+
+        transform: translateY(calc(70px));
+        transition: .25s cubic-bezier(0, .78, .17, 1);
+        backdrop-filter: blur(20px);
+
+        position: fixed;
+
+        &:hover {
+            transform: translateY(0);
+            background: none;
+        }
+    }
+}
+
 #player {
-    position: sticky;
+    position: fixed;
     bottom: 0 !important;
 
     width: 100%;
@@ -13,7 +30,7 @@
     align-items: center;
 
     backdrop-filter: blur(20px);
-    border-top: 1px solid rgba(colors.$foreground, .1);
+    border-top: 2px solid rgba(colors.$foreground, .1);
 
     label[data-type="file"],
     button {

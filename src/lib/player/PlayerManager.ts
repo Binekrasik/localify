@@ -17,6 +17,7 @@ export class PlayerManager extends Manager {
         backwardButton: sqs('#player-button-backward') as HTMLButtonElement,
         forwardButton: sqs('#player-button-forward') as HTMLButtonElement,
         playNextButton: sqs('#player-button-play-next') as HTMLButtonElement,
+        toggleZenMode: sqs('#player-button-zen') as HTMLButtonElement,
     }
 
     audioElement = sqs('#audioPlayer') as HTMLAudioElement
@@ -60,9 +61,14 @@ export class PlayerManager extends Manager {
             this.state.isPlaying = true
             this.UpdatePlayButtonState()
         })
+
         this.audioElement.addEventListener('pause', () => {
             this.state.isPlaying = false
             this.UpdatePlayButtonState()
+        })
+
+        this.audioElement.addEventListener('ended', () => {
+            Managers.QueueManager.PlayNextTrack()
         })
 
         this.controls.progressSlider.addEventListener('input', () => {
@@ -89,6 +95,18 @@ export class PlayerManager extends Manager {
 
         this.controls.playNextButton.addEventListener('click', () => {
             Managers.QueueManager.PlayNextTrack()
+        })
+
+        this.controls.toggleZenMode.addEventListener('click', () => {
+            const app = sqs('#app')
+
+            if (app.getAttribute('data-zen') === 'true') {
+                app.setAttribute('data-zen', 'false')
+                document.exitFullscreen()
+            } else {
+                app.setAttribute('data-zen', 'true')
+                sqs('html').requestFullscreen()
+            }
         })
 
         document.addEventListener('keydown', (e) => {
