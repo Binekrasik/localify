@@ -23,13 +23,13 @@ export class LyricsManager extends Manager {
     }
 
     #InitHooks (): void {
-        sqs('#player-file-lyrics').addEventListener('change', event => {
+        /* sqs('#player-file-lyrics').addEventListener('change', event => {
             const target = event.target as HTMLInputElement
             const file = target.files?.[0]
             if (!file) return
 
             this.LoadFromFile(file)
-        })
+        }) */
 
         document.addEventListener('wheel', () => this.UnsyncLyrics())
         document.addEventListener('touchmove', () => this.UnsyncLyrics())

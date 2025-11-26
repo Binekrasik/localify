@@ -1,4 +1,4 @@
-import './styles/app.scss'
+// import './styles/app.scss'
 
 import { Managers } from './lib/state/Managers'
 

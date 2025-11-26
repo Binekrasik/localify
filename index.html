@@ -5,6 +5,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/src/styles/app.scss">
     <title>localify</title>
 </head>
 
@@ -21,6 +22,8 @@
                 <div id="queue">
                     <h1>Queue</h1>
                 </div>
+                
+                <h2 class="queueEmptyIndicator">It's so lonely there...</h2>
             </div>
         </div>
 
@@ -52,7 +55,7 @@
             </div>
 
             <div class="queueControls">
-                <label data-type="file">
+                <!-- label data-type="file">
                     audio
                     <input type="file" accept=".mp3,.wav,.ogg,.flac,.m4a" id="player-file-audio" multiple />
                 </label>
@@ -60,12 +63,11 @@
                 <label data-type="file">
                     lycs
                     <input type="file" accept=".lrc" id="player-file-lyrics" multiple>
-                </label>
+                </label> -->
 
                 <label data-type="file">
                     qadd
-                    <input type="file" accept=".lrc,.mp3,.wav,.ogg,.flac,.m4a,.opus" id="player-add-to-queue"
-                        multiple />
+                    <input type="file" accept=".lrc,.mp3,.wav,.ogg,.flac,.m4a,.opus" id="player-add-to-queue" multiple />
                 </label>
 
                 <button id="player-button-play-next">next</button>

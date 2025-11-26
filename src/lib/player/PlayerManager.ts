@@ -48,13 +48,13 @@ export class PlayerManager extends Manager {
             this.SetControlsEnabled(false)
         })
 
-        sqs('#player-file-audio').addEventListener('change', event => {
+        /* sqs('#player-file-audio').addEventListener('change', event => {
             const target = event.target as HTMLInputElement
             const file = target.files?.[0]
             if (!file) return
 
             this.LoadAudioFile(file)
-        })
+        }) */
 
         this.audioElement.addEventListener('play', () => {
             this.state.isPlaying = true
@@ -138,7 +138,7 @@ export class PlayerManager extends Manager {
             this.audioElement.innerHTML = `<source src="${reader.result}" type="${file.type}">`
             this.audioElement.load()
 
-            console.log(`${file.name} loaded.`)
+            console.log(`${file.name} loaded.`) 
         }
 
         reader.readAsDataURL(file)
@@ -150,6 +150,12 @@ export class PlayerManager extends Manager {
 
         if (track.lyricsFile)
             Managers.LyricsManager.LoadFromFile(track.lyricsFile)
+    }
+
+    SkipCurrentTrack() {
+        this.audioElement.querySelectorAll('source').forEach(node => node.remove())
+        this.audioElement.removeAttribute('src')
+        this.audioElement.load()
     }
 
     UpdateProgressIndicators () {

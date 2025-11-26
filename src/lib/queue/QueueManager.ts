@@ -3,6 +3,7 @@ import { Manager } from '../Manager'
 import { Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
 import { parseAudioFile } from '../track/parseImage'
+import { PlayerManager } from '../player/PlayerManager'
 
 export class QueueManager extends Manager {
     queue: Track[] = []
@@ -44,6 +45,16 @@ export class QueueManager extends Manager {
             // reset the input value to allow adding the same files again if needed
             this.#addToQueueInput.value = ''
         })
+
+        new MutationObserver(mutationList => {
+            mutationList.forEach(mutation => {
+                if (mutation.type !== 'childList') return
+
+                if (this.#queueListElement.querySelectorAll('.queueItem').length === 0)
+                    sqs('#queueContainer .queueEmptyIndicator').removeAttribute('data-hidden')
+                else sqs('#queueContainer .queueEmptyIndicator').setAttribute('data-hidden', 'true')
+            })
+        }).observe(this.#queueListElement, { childList: true })
     }
 
     AddToQueue(track: Track) {
@@ -71,6 +82,9 @@ export class QueueManager extends Manager {
 
     PlayNextTrack() {
         console.log('Playing next track in queue.')
+
+        Managers.LyricsManager.ResetLyrics()
+        Managers.PlayerManager.SkipCurrentTrack()
 
         if (this.queue.length > 0)
             if (this.queue[0].isPlaying) {
