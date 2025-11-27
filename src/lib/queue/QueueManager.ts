@@ -3,7 +3,6 @@ import { Manager } from '../Manager'
 import { Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
 import { parseAudioFile } from '../track/parseImage'
-import { PlayerManager } from '../player/PlayerManager'
 
 export class QueueManager extends Manager {
     queue: Track[] = []
