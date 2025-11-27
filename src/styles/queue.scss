@@ -12,11 +12,11 @@
     }
 }
 
-$queueWidth: 25vw;
+$queueMaxWidth: 380px;
 
 #app[data-zen="true"] {
     #queueContainer[data-collapsable="true"] {
-        transform: translateX(calc($queueWidth - 1.5rem - 8px - 50px - 1.5rem - 10px));
+        transform: translateX(calc($queueMaxWidth - 1.5rem - 8px - 50px - 1.5rem - 10px));
         position: fixed;
 
         .queueEmptyIndicator {
@@ -40,7 +40,7 @@ $queueWidth: 25vw;
         &:hover {
             transform: translateX(0);
 
-            .queueEmptyIndicator {
+            .queueEmptyIndicator:not([data-hidden="true"]) {
                 opacity: 1;
             }
 
@@ -63,7 +63,8 @@ $queueWidth: 25vw;
     right: 0;
 
     height: 100%;
-    width: $queueWidth;
+    width: $queueMaxWidth;
+    min-width: 300px;
 
     border-left: 2px solid rgba(colors.$foreground, .1);
     padding: 0 1.5rem 1.5rem;
@@ -91,9 +92,11 @@ $queueWidth: 25vw;
         }
     }
 
-    h1 {
-        font-size: 28px;
-        padding-top: 1.1rem;
+    h1, h2, h3, h4, p {
+        color: rgba(colors.$foreground, .5);
+
+        font-weight: 600;
+        margin: 0;
     }
 
     #queue {
@@ -107,12 +110,30 @@ $queueWidth: 25vw;
 
         gap: 10px;
 
+        h1 {
+            font-size: 28px;
+            font-weight: 500;
+
+            height: fit-content;
+
+            padding: 1.75rem 0 .75rem .25rem;
+
+            color: colors.$foreground;
+
+            span {
+                font-family: 'JetBrains Mono';
+                color: rgba(colors.$foreground, .15);
+
+                font-weight: 500;
+            }
+        }
+
         .queueItem {
             padding: 8px;
 
             display: flex;
 
-            transition: .4s cubic-bezier(0.63, 0.234, 0, 1);
+            transition: .3s cubic-bezier(0.63, 0.234, 0, 1);
             
             border-left: 2px solid transparent;
 
@@ -135,7 +156,7 @@ $queueWidth: 25vw;
 
             &[data-removed="true"] {
                 opacity: 0;
-                transform: translateX($queueWidth);
+                transform: translateX($queueMaxWidth);
             }
 
             p {
@@ -176,12 +197,5 @@ $queueWidth: 25vw;
                 }
             }
         }
-    }
-
-    h1, h2, h3, h4, p {
-        color: rgba(colors.$foreground, .5);
-
-        font-weight: 600;
-        margin: 0;
     }
 }

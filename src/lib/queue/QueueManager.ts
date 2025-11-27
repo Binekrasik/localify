@@ -87,7 +87,7 @@ export class QueueManager extends Manager {
 
         Managers.UpdateManager.CreateTimer({
             callback: () => { element.remove() },
-            timeout: 1000,
+            timeout: 300,
         })
     }
 
