@@ -1,5 +1,17 @@
 @use './colors.scss' as colors;
 
+@keyframes animationQueueItemSlideIn {
+    0% {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 $queueWidth: 25vw;
 
 #app[data-zen="true"] {
@@ -100,9 +112,11 @@ $queueWidth: 25vw;
 
             display: flex;
 
-            transition: 1s cubic-bezier(0, .78, .17, 1);
+            transition: .4s cubic-bezier(0.63, 0.234, 0, 1);
             
             border-left: 2px solid transparent;
+
+            animation: .4s cubic-bezier(0.63, 0.234, 0, 1) animationQueueItemSlideIn;
 
             &[data-playing="true"] {
                 p {
@@ -121,7 +135,7 @@ $queueWidth: 25vw;
 
             &[data-removed="true"] {
                 opacity: 0;
-                transform: translateY(-66px);
+                transform: translateX($queueWidth);
             }
 
             p {
