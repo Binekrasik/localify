@@ -28,6 +28,8 @@ export class PlayerManager extends Manager {
     }
 
     #initHooks() {
+        //
+        // Audio stuff
         this.audioElement.addEventListener('loadeddata', () => {
             this.SetControlsEnabled(true)
         
@@ -71,6 +73,8 @@ export class PlayerManager extends Manager {
             Managers.QueueManager.PlayNextTrack()
         })
 
+        //
+        // Controls
         this.controls.progressSlider.addEventListener('input', () => {
             this.audioElement.currentTime = (parseFloat(this.controls.progressSlider.value) / 100) * this.audioElement.duration
             Managers.LyricsManager.SyncLyrics()
@@ -97,18 +101,10 @@ export class PlayerManager extends Manager {
             Managers.QueueManager.PlayNextTrack()
         })
 
-        this.controls.toggleZenMode.addEventListener('click', () => {
-            const app = sqs('#app')
+        // zen mode
+        this.controls.toggleZenMode.addEventListener('click', () => this.ToggleZenMode())
 
-            if (app.getAttribute('data-zen') === 'true') {
-                app.setAttribute('data-zen', 'false')
-                document.exitFullscreen()
-            } else {
-                app.setAttribute('data-zen', 'true')
-                sqs('html').requestFullscreen()
-            }
-        })
-
+        // spacebar play/pause
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
                 e.preventDefault()
@@ -116,10 +112,32 @@ export class PlayerManager extends Manager {
             }
         })
 
+        // volume
         this.SetVolume()
         this.controls.volumeSlider.addEventListener('input', () => this.SetVolume())
 
+        // progress updating
         Managers.UpdateManager.AddUpdateListener(() => this.UpdateProgressIndicators())
+    }
+
+    ToggleZenMode(enable?: boolean) {
+        const app = sqs('#app')
+
+        if (app.getAttribute('data-zen') === 'true' && typeof enable === 'undefined' || !enable && typeof enable !== 'undefined') {
+            app.setAttribute('data-zen', 'false')
+
+            sqs('#queueContainer').removeAttribute('data-collapsable')
+            sqs('#player').removeAttribute('data-collapsable')
+
+            document.exitFullscreen()
+        } else {
+            app.setAttribute('data-zen', 'true')
+
+            sqs('#queueContainer').setAttribute('data-collapsable', 'true')
+            sqs('#player').setAttribute('data-collapsable', 'true')
+            
+            sqs('html').requestFullscreen()
+        }
     }
 
     /**
@@ -130,11 +148,18 @@ export class PlayerManager extends Manager {
         this.audioElement.volume = Math.min(Math.max(volume, 0), 100) / 100
     }
 
+    /**
+     * Sets the play button icon based on whether the audio is playing or paused.
+     */
     UpdatePlayButtonState () {
         this.controls.playButton.innerText = this.audioElement.paused ? '▶' : '❚❚'
     }
 
-    SetControlsEnabled(enabled: boolean) {
+    /**
+     * Enabled or disables player controls.
+     * @param enabled 
+     */
+    SetControlsEnabled(enabled?: boolean) {
         console.log(`Player controls ${enabled ? 'enabled' : 'disabled'}.`)
 
         this.controls.playButton.disabled = !enabled
@@ -143,6 +168,10 @@ export class PlayerManager extends Manager {
         this.controls.syncButton.disabled = enabled ? Managers.LyricsManager.state.synced : false
     }
 
+    /**
+     * Loads an audio file into the audio element using <source ...>.
+     * @param file the audio file to load
+     */
     LoadAudioFile (file: File) {
         if (!file.type.startsWith('audio/')) {
             alert('Invalid audio file.')
@@ -165,9 +194,8 @@ export class PlayerManager extends Manager {
     LoadTrack (track: Track, playOnLoad: boolean = false) {
         this.state.playOnNextTrackLoad = playOnLoad
         this.LoadAudioFile(track.audioFile)
-
-        if (track.lyricsFile)
-            Managers.LyricsManager.LoadFromFile(track.lyricsFile)
+        
+        Managers.LyricsManager.LoadFromTrack(track)
     }
 
     SkipCurrentTrack() {
@@ -176,13 +204,14 @@ export class PlayerManager extends Manager {
         this.audioElement.load()
     }
 
+    /** */
     UpdateProgressIndicators () {
         const progress = (this.audioElement.currentTime / this.audioElement.duration) * 100
         this.controls.progressSlider.value = `${progress}`
     
         const time = (progress / 100) * this.audioElement.duration
-        const minutes = Math.floor(time / 60) || '0'
-        const seconds = Math.floor(time % 60) || '00'
+        const minutes = Math.round(time / 60) || '0'
+        const seconds = Math.round(time % 60) || '00'
     
         // @ts-ignore
         sqs('#player-label-progress .currentTime').innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`

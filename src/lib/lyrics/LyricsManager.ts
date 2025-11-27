@@ -4,6 +4,7 @@ import { Manager } from '../Manager'
 import { Managers } from '../state/Managers'
 import { LyricsEditor } from './LyricsEditor'
 import type { LyricsLine } from './LyricsLine'
+import type { Track } from '../track/Track'
 
 export class LyricsManager extends Manager {
     state = {
@@ -140,20 +141,24 @@ export class LyricsManager extends Manager {
         Managers.PlayerManager.controls.syncButton.disabled = false
     }
 
-    LoadFromFile (file: File) {
-        console.log(`Loading lyrics from .lrc file: ${file.name}`)
+    LoadFromTrack (track: Track) {
+        if (track.lyricsFile) {
+            console.log(`Loading lyrics from .lrc file: ${track.lyricsFile.name}`)
 
-        // load lyrics asynchronously
-        file.text()
-            .then(res => res.trim())
-            .then(text => {
-                this.ResetLyrics()
+            // load lyrics asynchronously
+            track.lyricsFile.text()
+                .then(res => res.trim())
+                .then(text => {
+                    this.ResetLyrics()
 
-                this.state.text = text
-                this.ParseLoadLyricsText()
+                    this.state.text = text
+                    this.ParseLoadLyricsText()
 
-                console.log(`${file.name} loaded.`)
-            })
+                    console.log(`${track.lyricsFile!.name} loaded.`)
+                })
+        } else {
+            this.ParseLoadLyricsText(`[ar: ${track.artist}]\n[ti: ${track.title}]\n`)
+        }
     }
 
     UpdateSyncedLyrics () {

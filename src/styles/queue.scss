@@ -3,18 +3,40 @@
 $queueWidth: 25vw;
 
 #app[data-zen="true"] {
-    #queueContainer[data-respect-zen="true"] {
-        background: rgba(colors.$foreground, .05);
-
-        transform: translateX(calc($queueWidth - 10px));
-        transition: .25s cubic-bezier(0, .78, .17, 1);
-        backdrop-filter: blur(20px);
-
+    #queueContainer[data-collapsable="true"] {
+        transform: translateX(calc($queueWidth - 1.5rem - 8px - 50px - 1.5rem - 10px));
         position: fixed;
+
+        .queueEmptyIndicator {
+            opacity: 0;
+            transition: .25s cubic-bezier(0, .78, .17, 1);
+        }
+
+        #queue {
+            h1 {
+                opacity: 0;
+                transition: .25s cubic-bezier(0, .78, .17, 1);
+            }
+
+            .queueItem {
+                img {
+                    margin-right: calc(1.5rem + 10px);
+                }
+            }
+        }
 
         &:hover {
             transform: translateX(0);
-            background: none;
+
+            .queueEmptyIndicator {
+                opacity: 1;
+            }
+
+            #queue {
+                h1 {
+                    opacity: 1;
+                }
+            }
         }
     }
 }
@@ -33,6 +55,11 @@ $queueWidth: 25vw;
 
     border-left: 2px solid rgba(colors.$foreground, .1);
     padding: 0 1.5rem 1.5rem;
+
+    background: rgba(colors.$foreground, .05);
+    backdrop-filter: blur(20px);
+
+    transition: .25s cubic-bezier(0, .78, .17, 1);
 
     .queueEmptyIndicator {
         text-align: center;
@@ -94,7 +121,7 @@ $queueWidth: 25vw;
 
             &[data-removed="true"] {
                 opacity: 0;
-                transform: translateX(200px);
+                transform: translateY(-66px);
             }
 
             p {
@@ -119,7 +146,7 @@ $queueWidth: 25vw;
                 width: 50px;
                 height: 50px;
                 object-fit: cover;
-                margin-right: 10px;
+                margin-right: 1rem;
             }
 
             .trackInfo {

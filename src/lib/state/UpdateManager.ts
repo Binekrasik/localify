@@ -6,10 +6,8 @@ export class UpdateManager extends Manager {
     listeners: Array<() => void> = []
     timers: Timer[] = []
 
-    state = {
-        lastUpdateTimestamp: 0, // do not touch
-        updateInterval: 1000 / 100, // tick interval in milliseconds; default is 100x a second (10ms)
-    }
+    #lastUpdateTimestamp = 0
+    readonly updateInterval = 1000 / 100 // tick interval in milliseconds; default is 100x a second (10ms)
 
     /**
      * Creates a timer running within the internal ticker.
@@ -48,19 +46,19 @@ export class UpdateManager extends Manager {
     }
     
     Initialize () {
-        this.state.lastUpdateTimestamp = performance.now()
+        this.#lastUpdateTimestamp = performance.now()
         this.Update()
     }
 
     Update() {
         window.requestAnimationFrame(timestamp => {
-            const deltaTime = timestamp - this.state.lastUpdateTimestamp
+            const deltaTime = timestamp - this.#lastUpdateTimestamp
 
-            if (deltaTime >= this.state.updateInterval && UpdateManager.DoUpdates) {
+            if (deltaTime >= this.updateInterval && UpdateManager.DoUpdates) {
                 this.#CallListeners()
                 this.#TickTimers(deltaTime)
 
-                this.state.lastUpdateTimestamp = timestamp
+                this.#lastUpdateTimestamp = timestamp
             }
 
             this.Update()
