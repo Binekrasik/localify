@@ -32,7 +32,7 @@ export class QueueManager extends Manager {
 
                             return file.name
                                 .toLowerCase()
-                                .startsWith(match[1])
+                                .includes(match[1])
                                 && file.name.toLowerCase().endsWith('.lrc')
                         })
 
