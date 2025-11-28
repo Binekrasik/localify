@@ -21,16 +21,26 @@ $queueMaxWidth: 380px;
 
         .queueEmptyIndicator {
             opacity: 0;
-            transition: .25s cubic-bezier(0, .78, .17, 1);
+            transition: .3s cubic-bezier(0, .78, .17, 1);
         }
 
         #queue {
             h1 {
                 opacity: 0;
-                transition: .25s cubic-bezier(0, .78, .17, 1);
+                transition: .3s cubic-bezier(0, .78, .17, 1);
             }
 
             .queueItem {
+                padding-left: 10px;
+
+                &[data-playing="true"] {
+                    border: 2px solid transparent;
+                    // position: relative;
+
+                    // background: none;
+                    // border-color: rgba(colors.$foreground, .15);
+                }
+
                 img {
                     margin-right: calc(1.5rem + 10px);
                 }
@@ -47,6 +57,11 @@ $queueMaxWidth: 380px;
             #queue {
                 h1 {
                     opacity: 1;
+                }
+
+                .queueItem[data-playing="true"] {
+                    border-color: transparent;
+                    background: rgba(colors.$foreground, .15);
                 }
             }
         }
@@ -72,7 +87,7 @@ $queueMaxWidth: 380px;
     background: rgba(colors.$foreground, .05);
     backdrop-filter: blur(20px);
 
-    transition: .25s cubic-bezier(0, .78, .17, 1);
+    transition: .3s cubic-bezier(0, .78, .17, 1);
 
     .queueEmptyIndicator {
         text-align: center;
@@ -93,7 +108,7 @@ $queueMaxWidth: 380px;
     }
 
     h1, h2, h3, h4, p {
-        color: rgba(colors.$foreground, .5);
+        color: rgba(colors.$foreground, .75);
 
         font-weight: 600;
         margin: 0;
@@ -129,28 +144,29 @@ $queueMaxWidth: 380px;
         }
 
         .queueItem {
-            padding: 8px;
-
+            padding: 10px;
             display: flex;
 
-            transition: .3s cubic-bezier(0.63, 0.234, 0, 1);
-            
-            border-left: 2px solid transparent;
+            border: 2px solid transparent;
 
+            width: 100%;
+
+            transition: .3s cubic-bezier(0.63, 0.234, 0, 1), border .5s cubic-bezier(0, 1, 0.3, 1) ;
             animation: .4s cubic-bezier(0.63, 0.234, 0, 1) animationQueueItemSlideIn;
+
+            &:hover {
+                border-color: rgba(colors.$foreground, .25);
+            }
 
             &[data-playing="true"] {
                 p {
                     color: colors.$foreground;
                 }
 
-                background-image: linear-gradient(to right,
-                    rgba(#fff, 0.15),
-                    rgba(#fff, 0),
-                );
+                background: rgba(colors.$foreground, .15);
+                // background: rgba(var(--color-accent), .15);
 
                 border-left-color: rgba(colors.$foreground, .25);
-
                 padding-left: 20px;
             }
 
@@ -160,17 +176,17 @@ $queueMaxWidth: 380px;
             }
 
             p {
-                font-weight: 500;
+                font-weight: 400;
                 font-size: 15px;
             }
 
             .name {
-                font-size: 16px;
+                font-size: 18px;
                 font-weight: 600;
             }
 
             .lyricsStatus[data-loaded="true"] {
-                color: rgba(#9bffd5, .75);
+                color: rgba(#9bffd5, .9);
             }
 
             .lyricsStatus[data-loaded="false"] {

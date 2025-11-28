@@ -37,15 +37,14 @@ export class LyricsManager extends Manager {
 
         Managers.UpdateManager.AddUpdateListener(() => this.UpdateSyncedLyrics())
 
-        this.ParseLoadLyricsText('[ar: no lyrics]\n[ti: There\'s absolutely nothing lol]')
+        this.ResetLyrics()
     }
 
     /**
      * Resets the current lyrics state and clears the lyrics element
      */
     ResetLyrics () {
-        this.state.lines = []
-        this.#lyricsElement.innerHTML = ''
+        this.ParseLoadLyricsText()
     }
 
     /**
@@ -53,13 +52,19 @@ export class LyricsManager extends Manager {
      * @param text Optional. LRC text to parse. If not provided, uses the current state's text.
      * @param editingMode Optional. If true, adds timestamps alongside lyrics. Defaults to current editingMode state.
      */
-    ParseLoadLyricsText (text: string | null = null, editingMode: boolean = this.state.editingMode) {
+    ParseLoadLyricsText (text?: string, track?: Track, editingMode: boolean = this.state.editingMode) {
         // keep track of count of the actual lines
         let index = 0
 
+        // clear lines buffer
+        this.state.lines = []
+
         // update the stored text if `text` is provided
-        if (text)
+        if (text && text.trim() !== '')
             this.state.text = text
+        else if (track?.lyrics)
+            this.state.text = track.lyrics
+        else this.state.text = '[ar: no lyrics]\n[ti: There\'s absolutely nothing lol]'
     
         console.log('Parsing lyrics...')
     
@@ -70,6 +75,11 @@ export class LyricsManager extends Manager {
                 <h1 class="title"></h1>
             </div>
             `.trim()
+
+        const headerElements = {
+            author: sqs('#lyrics .header .author') as HTMLHeadingElement,
+            title: sqs('#lyrics .header .title') as HTMLHeadingElement,
+        }
     
         this.state.text
             .split('\n')
@@ -83,7 +93,13 @@ export class LyricsManager extends Manager {
                     const seconds = parseFloat(match[2])
     
                     // parse time into seconds
-                    const time = minutes * 60 + seconds
+                    let time = minutes * 60 + seconds
+
+                    // insert 00:00.00 timestamp if it's not present
+                    if (time > 0 && index === 0) {
+                        this.state.lines.push({ time: 0, index, text: '♪' })
+                        index++
+                    }
     
                     // prevent HTML injection
                     const text = match[3].trim().length > 0 ? match[3].replaceAll(/\<.*?\>/gmi, '').trim() : '♪'
@@ -94,14 +110,22 @@ export class LyricsManager extends Manager {
                     // match lrc title
                     const author = line.match(/\[ar:(.*)\]/)
                     const title = line.match(/\[ti:(.*)\]/)
-    
-                    // @ts-ignore
-                    if (author) sqs('#lyrics .header .author').innerText = author[1].trim()
-    
-                    // @ts-ignore
-                    if (title) sqs('#lyrics .header .title').innerText = title[1].trim()
+
+                    if (author)
+                        headerElements.author.innerText = author[1].trim()
+
+                    if (title)
+                        headerElements.title.innerText = title[1].trim()
                 }
             })
+
+        if (track) {
+            if (headerElements.author.innerText === '')
+                headerElements.author.innerText = track.artist
+
+            if (headerElements.title.innerText === '')
+                headerElements.title.innerText = track.title
+        }
     
         // insert all lines into the lyrics element
         this.#lyricsElement.innerHTML += this.state.lines.map(line =>
@@ -131,6 +155,13 @@ export class LyricsManager extends Manager {
         // this.#lyricsEditor.UpdateLineIndicator()
     }
 
+    SetAccentColor (color: string) {
+        console.log(`Settings lyrics accent color to ${color}`)
+
+        const lyricsContainer = sqs('#lyricsContainer') as HTMLDivElement
+        lyricsContainer.style.setProperty('--color-accent', color)
+    }
+
     SyncLyrics () {
         this.state.synced = true
         Managers.PlayerManager.controls.syncButton.disabled = true
@@ -142,23 +173,16 @@ export class LyricsManager extends Manager {
     }
 
     LoadFromTrack (track: Track) {
-        if (track.lyricsFile) {
-            console.log(`Loading lyrics from .lrc file: ${track.lyricsFile.name}`)
+        if (track.lyrics) {
+            this.ResetLyrics()
 
-            // load lyrics asynchronously
-            track.lyricsFile.text()
-                .then(res => res.trim())
-                .then(text => {
-                    this.ResetLyrics()
-
-                    this.state.text = text
-                    this.ParseLoadLyricsText()
-
-                    console.log(`${track.lyricsFile!.name} loaded.`)
-                })
+            this.state.text = track.lyrics
+            this.ParseLoadLyricsText(undefined, track)
         } else {
             this.ParseLoadLyricsText(`[ar: ${track.artist}]\n[ti: ${track.title}]\n`)
         }
+
+        this.SetAccentColor(track.accentColor)
     }
 
     UpdateSyncedLyrics () {

@@ -6,7 +6,8 @@ export interface Track {
      * Base64-encoded cover image
      */
     coverImage?: string
-    lyricsFile?: File
+    lyrics?: string
     domElement?: HTMLDivElement
     isPlaying: boolean
+    accentColor: string
 }

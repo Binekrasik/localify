@@ -2,7 +2,8 @@ import sqs from '../safeQuerySelector'
 import { Manager } from '../Manager'
 import { Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
-import { parseAudioFile } from '../track/parseImage'
+import { parseAudioFile } from '../track/parseAudioFile'
+import { readLrcFile } from '../lyrics/lrcutils'
 
 export class QueueManager extends Manager {
     queue: Track[] = []
@@ -36,9 +37,24 @@ export class QueueManager extends Manager {
                                 && file.name.toLowerCase().endsWith('.lrc')
                         })
 
-                    parseAudioFile(audioFile).then(track => {
-                        this.AddToQueue({ ...track, lyricsFile: lyricsFile || undefined })
-                    })
+                    if (lyricsFile) {
+                        new Promise(async () => {
+                            let track: Track | undefined
+
+                            parseAudioFile(audioFile).then(parsed => track = parsed)
+                            readLrcFile(lyricsFile).then(text => {
+                                const listener = () => {
+                                    if (track) {
+                                        this.AddToQueue({ ...track, lyrics: text })
+                                        Managers.UpdateManager.RemoveUpdateListener(listener)
+                                        console.log('Track added!')
+                                    }
+                                }
+
+                                Managers.UpdateManager.AddUpdateListener(listener)
+                            })
+                        })
+                    }
                 })
 
             // reset the input value to allow adding the same files again if needed
@@ -64,7 +80,7 @@ export class QueueManager extends Manager {
             <img src="${track.coverImage ? track.coverImage : ''}" alt="No image" >
             <div class="trackInfo">
                 <p class="name">${track.title}</p>
-                <p class="lyricsStatus" data-loaded="${track.lyricsFile ? 'true' : 'false'}">${track.lyricsFile ? 'lyrics loaded' : 'no lyrics'}</p>
+                <p class="lyricsStatus" data-loaded="${track.lyrics ? 'true' : 'false'}">${track.lyrics ? 'lyrics loaded' : 'no lyrics'}</p>
             </div>
 `
         this.#queueListElement.appendChild(trackElement)

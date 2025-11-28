@@ -12,3 +12,14 @@ export function getTimeFromTimestampTag(tag: string): number {
     const centiseconds = parseInt(match[3])
     return minutes * 60 + seconds + centiseconds / 100
 }
+
+/**
+ * Reads and returns a lyrics file
+ * @param file the file to read
+ */
+export async function readLrcFile(file: File): Promise<string> {
+    return new Promise(resolve => {
+        file.text()
+            .then(res => resolve(res.trim()))
+    })
+}

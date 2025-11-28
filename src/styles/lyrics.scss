@@ -17,7 +17,34 @@
 
     min-height: 100%;
 
-    margin-bottom: 80px;
+    margin-bottom: 50vh;
+
+    &::before {
+        content: '';
+        z-index: -1;
+        position: fixed;
+        left: 0;
+        right: 0;
+        width: 100vw;
+        height: 100vh;
+        display: block;
+
+        @property --color-accent {
+            syntax: '<color>';
+            initial-value: #000;
+            inherits: false;
+        }
+
+        transition: 1s cubic-bezier(0, 1, 0.3, 1);
+
+        // background-image: linear-gradient(
+        //     50deg,
+        //     color-mix(in srgb, var(--color-accent), #020202 90%),
+        //     color-mix(in srgb, var(--color-accent), #000 95%),
+        // );
+
+        background-color: color-mix(in srgb, var(--color-accent), #020202 90%);
+    }
 
     #lyrics-editor-line-indicator {
         position: absolute;

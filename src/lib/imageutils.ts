@@ -1,3 +1,5 @@
+import ColorThief from 'colorthief'
+
 /**
  * Takes a base64-encoded image, resizes it and returns the resized one as a base64 data URL string string
  * @param image a base64-encoded image
@@ -19,6 +21,29 @@ export async function resizeBase64Image(image: string, width: number, height: nu
                 .drawImage(imageElement, 0, 0, width, height)
 
             resolve(canvas.toDataURL())
+
+            imageElement.remove()
         }
+    })
+}
+
+/**
+ * Grabs a single accent color of the provided image and returns it as a css-compatible color string.
+ * @param image a base64-encoded image
+ * @returns css-compatible color string
+ */
+export async function getAccentColorFromBase64(image: string): Promise<string> {
+    const thief = new ColorThief()
+    const imageElement = new Image()
+
+    return new Promise(resolve => {
+        imageElement.onload = () => {
+            const colors = thief.getColor(imageElement, 1)
+            imageElement.remove()
+
+            resolve(`rgb(${colors[0]}, ${colors[1]}, ${colors[2]})`)
+        }
+
+        imageElement.src = image
     })
 }
