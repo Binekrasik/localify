@@ -152,7 +152,7 @@ export class PlayerManager extends Manager {
      * Sets the play button icon based on whether the audio is playing or paused.
      */
     UpdatePlayButtonState () {
-        this.controls.playButton.innerText = this.audioElement.paused ? '▶' : '❚❚'
+        this.controls.playButton.innerText = this.audioElement.paused ? '▶' : '⏸'
     }
 
     /**
@@ -166,6 +166,8 @@ export class PlayerManager extends Manager {
         this.controls.progressSlider.disabled = !enabled
         this.controls.volumeSlider.disabled = !enabled
         this.controls.syncButton.disabled = enabled ? Managers.LyricsManager.state.synced : false
+
+        this.UpdatePlayButtonState()
     }
 
     /**

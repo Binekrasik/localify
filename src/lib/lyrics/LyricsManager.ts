@@ -45,6 +45,7 @@ export class LyricsManager extends Manager {
      */
     ResetLyrics () {
         this.ParseLoadLyricsText()
+        this.SetAccentColor('#000')
     }
 
     /**
