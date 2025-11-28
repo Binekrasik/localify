@@ -11,12 +11,14 @@ export class LyricsManager extends Manager {
         lines: [] as LyricsLine[],
         text: '',
         currentLineIndex: -1,
+        currentLineElement: undefined as HTMLParagraphElement | undefined,
         synced: true,
         editingMode: true,
     }
 
     #lyricsEditor = new LyricsEditor()
     #lyricsElement = sqs('#lyrics') as HTMLDivElement
+    #lyricsPositionIndicator = sqs('#lyrics-positionIndicator') as HTMLParagraphElement
 
     Initialize(): void {
         this.#InitHooks()
@@ -173,6 +175,15 @@ export class LyricsManager extends Manager {
         Managers.PlayerManager.controls.syncButton.disabled = false
     }
 
+    UpdateLyricsPositionIndicator () {
+        if (!this.state.currentLineElement) return
+        
+        let pixelOffset = Managers.PlayerManager.audioElement.currentTime - parseFloat(this.state.currentLineElement.getAttribute('data-time')!)
+
+        this.#lyricsPositionIndicator.style.setProperty('top', `${this.state.currentLineElement.offsetTop}px`)
+        this.#lyricsPositionIndicator.style.setProperty('left', `${this.state.currentLineElement.offsetLeft}px`)
+    }
+
     LoadFromTrack (track: Track) {
         if (track.lyrics) {
             this.ResetLyrics()
@@ -197,7 +208,7 @@ export class LyricsManager extends Manager {
         this.state.lines
             .filter((line, index) => line.time <= time && (this.state.lines[index + 1]?.time > time || index + 1 === this.state.lines.length))
             .forEach(line => {
-                const p = document.querySelector(`p[data-index="${line.index}"]`)
+                const p = document.querySelector(`p[data-index="${line.index}"]`) as HTMLParagraphElement
                 if (!p) return
     
                 // console.log(`Current line: ${ line.text }`)
@@ -205,9 +216,12 @@ export class LyricsManager extends Manager {
     
                 p.setAttribute('data-active', 'true')
                 this.state.currentLineIndex = line.index
+                this.state.currentLineElement = p
             })
     
         if (time === Managers.PlayerManager.audioElement.duration)
             this.state.currentLineIndex = -1
+
+        this.UpdateLyricsPositionIndicator()
     }
 }
