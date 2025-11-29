@@ -1,5 +1,5 @@
 import { getTimestampTag } from './lrcutils'
-import sqs from '../safeQuerySelector'
+import sqs from '../shortQuerySelector'
 import { Managers } from '../state/Managers'
 
 export class LyricsEditor {

@@ -1,4 +1,4 @@
-import sqs from '../safeQuerySelector'
+import sqs from '../shortQuerySelector'
 import { Manager } from '../Manager'
 import { Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
@@ -103,7 +103,7 @@ export class QueueManager extends Manager {
 
         Managers.UpdateManager.CreateTimer({
             callback: () => { element.remove() },
-            timeout: 300,
+            delay: 300,
         })
     }
 

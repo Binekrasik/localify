@@ -7,13 +7,13 @@ export class UpdateManager extends Manager {
     timers: Timer[] = []
 
     #lastUpdateTimestamp = 0
-    readonly updateInterval = 1000 / 100 // tick interval in milliseconds; default is 100x a second (10ms)
+    readonly updateInterval = 0 // tick interval in milliseconds. -1 disables the limit
 
     /**
      * Creates a timer running within the internal ticker.
      */
     CreateTimer (timer: Timer): void {
-        timer.timeRemaining = timer.timeout
+        timer.timeRemaining = timer.delay
         this.timers.push(timer)
     }
 
@@ -35,12 +35,14 @@ export class UpdateManager extends Manager {
             timer.timeRemaining -= delta
             
             if (timer.timeRemaining <= 0) {
-                timer.callback()
+                const callback = timer.callback()
                 
-                if (timer.iterations && timer.iterations > 1){
+                if (timer.iterations && timer.iterations > 1 && callback !== true){
                     timer.iterations--
-                    timer.timeRemaining = timer.timeout
-                } else this.timers.splice(index, 1)
+                } else if (timer.iterations || callback === true)
+                    this.timers.splice(index, 1)
+            
+                timer.timeRemaining = timer.delay
             }
         })
     }

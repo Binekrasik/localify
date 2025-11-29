@@ -1,4 +1,4 @@
-import sqs from '../safeQuerySelector';
+import sqs from '../shortQuerySelector';
 import { Manager } from '../Manager';
 import type { Track } from '../track/Track';
 import { Managers } from '../state/Managers';
@@ -62,6 +62,11 @@ export class PlayerManager extends Manager {
         this.audioElement.addEventListener('play', () => {
             this.state.isPlaying = true
             this.UpdatePlayButtonState()
+
+            Managers.UpdateManager.CreateTimer({
+                callback: () => Managers.LyricsManager.UpdateLyricsPositionIndicator(),
+                delay: 50,
+            })
         })
 
         this.audioElement.addEventListener('pause', () => {
@@ -78,6 +83,7 @@ export class PlayerManager extends Manager {
         this.controls.progressSlider.addEventListener('input', () => {
             this.audioElement.currentTime = (parseFloat(this.controls.progressSlider.value) / 100) * this.audioElement.duration
             Managers.LyricsManager.SyncLyrics()
+            Managers.LyricsManager.UpdateLyricsPositionIndicator(true)
         })
 
         this.controls.syncButton.addEventListener('click', () => Managers.LyricsManager.SyncLyrics())

@@ -69,20 +69,19 @@ $queueMaxWidth: 380px;
 }
 
 #queueContainer {
-    display: flex;
-    flex-direction: column;
+    // display: flex;
+    // flex-direction: column;
 
-    position: sticky;
+    // position: sticky;
 
-    top: 0;
-    right: 0;
+    // top: 0;
+    // right: 0;
 
-    height: 100%;
+    // height: 1fr;
     width: $queueMaxWidth;
     min-width: 300px;
 
     border-left: 2px solid rgba(colors.$foreground, .1);
-    padding: 0 1.5rem 1.5rem;
 
     background: rgba(colors.$foreground, .05);
     backdrop-filter: blur(20px);
@@ -118,10 +117,16 @@ $queueMaxWidth: 380px;
         display: flex;
         flex-direction: column;
 
-        position: sticky;
+        // position: sticky;
+
+        overflow: scroll;
+
+        height: 100%;
 
         top: 0;
         right: 0;
+
+        padding: 0 1.5rem 1.5rem;
 
         gap: 10px;
 
@@ -130,6 +135,8 @@ $queueMaxWidth: 380px;
             font-weight: 500;
 
             height: fit-content;
+
+            position: sticky;
 
             padding: 1.75rem 0 .75rem .25rem;
 

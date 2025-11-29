@@ -1,13 +1,15 @@
 export interface Timer {
     /**
      * A function to be executed after the timeout has been reached.
+     * @returns returning `true` will stop the timer. Anything other value will be ignored
      */
-    callback: () => void
+    callback: () => void | boolean
     
     /**
-     * Determines how long after the creation of the Timer should it execute the callback function.
+     * Determines the delay between each iterations of the Timer.
+     * Minimum value will be capped to the updateInterval of UpdateManager at the time of Timer creation.
      */
-    timeout: number
+    delay: number
 
     /**
      * internal - will be reset on creation and has no effect.
@@ -16,6 +18,7 @@ export interface Timer {
 
     /**
      * Optional - Limits how many times will the callback function be executed.
+     * If ommited, the Timer won't end until either stopped or removed.
      */
     iterations?: number
 }

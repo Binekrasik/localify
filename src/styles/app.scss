@@ -19,9 +19,9 @@ body {
     flex-direction: column;
 }
 
-::-webkit-scrollbar {
-    width: 0px;
-}
+// ::-webkit-scrollbar {
+//     width: 0px;
+// }
 
 * {
     box-sizing: border-box;
@@ -35,12 +35,15 @@ body {
 #app {
     display: grid;
     grid-template-rows: 1fr auto;
-    height: 100%;
+    height: 100vh;
+    overflow: hidden;
 
     #contentContainer {
         display: flex;
-        position: relative;
         width: 100%;
+        height: 1fr;
+        overflow: hidden;
+        flex: 1;
         
         .mainContainer {
             flex: 1;
