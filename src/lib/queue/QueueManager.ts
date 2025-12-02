@@ -77,8 +77,57 @@ export class QueueManager extends Manager {
                 <p class="name">${track.title}</p>
                 <p class="lyricsStatus" data-loaded="${track.lyrics ? 'true' : 'false'}">${track.lyrics ? 'lyrics loaded' : 'no lyrics'}</p>
             </div>
-`
+        `
+
+        const contextMenuElement = document.createElement('div')
+        contextMenuElement.classList.add('contextMenu')
+        contextMenuElement.setAttribute('data-visible', 'false')
+        contextMenuElement.innerHTML = `
+            <button>play</button>
+            <button>remove</button>
+        `
+
+        trackElement.appendChild(contextMenuElement)
         this.#queueListElement.appendChild(trackElement)
+
+        const itemRightclickListener = (event: MouseEvent) => {
+            console.log('click!')
+
+            // exit the menu if the user clicked outside
+            const dismissMenuListener = (ev: MouseEvent) => {
+                if (contextMenuElement.getAttribute('data-visible') !== 'true') return
+
+                // do not exit if the click was made inside the context menu
+                const boundingBox = contextMenuElement.getBoundingClientRect()
+
+                console.group('menu boundaries')
+                console.debug(`menuX: ${boundingBox.left}, menuRightX: ${boundingBox.right}`)
+                console.debug(`menuY: ${boundingBox.top}, menuLowerY: ${boundingBox.bottom}`)
+                console.debug(`mouseX: ${ev.x}, mouseY: ${ev.y}`)
+                console.groupEnd()
+
+                if (
+                    ev.x >= boundingBox.left && ev.x <= boundingBox.right
+                    && ev.y >= boundingBox.top && ev.y <= boundingBox.bottom
+                ) return
+
+                document.removeEventListener('click', dismissMenuListener)
+                contextMenuElement.setAttribute('data-visible', 'false')
+
+                ev.preventDefault()
+            }
+
+            document.addEventListener('contextmenu', dismissMenuListener)
+
+            contextMenuElement.setAttribute('data-visible', 'true')
+            contextMenuElement.style.top = `${event.y}px`
+            contextMenuElement.style.left = `${event.x}px`
+
+            event.preventDefault()
+        }
+
+        trackElement.addEventListener('contextmenu', itemRightclickListener)
+
         this.queue.push({ ...track, domElement: trackElement })
     }
 

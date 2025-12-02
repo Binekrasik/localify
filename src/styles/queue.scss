@@ -207,6 +207,26 @@ $queueMaxWidth: 380px;
                     text-wrap-mode: nowrap;
                 }
             }
+
+            .contextMenu {
+                position: absolute;
+                display: none;
+                flex-direction: column;
+
+                top: 0;
+                left: 0;
+
+                z-index: 100;
+
+                border: 2px solid rgba(colors.$foreground, .25);
+                backdrop-filter: blur(20px);
+
+
+
+                &[data-visible="true"] {
+                    display: flex;
+                }
+            }
         }
     }
 }
