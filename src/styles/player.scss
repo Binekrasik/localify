@@ -1,0 +1,119 @@
+@use './colors.scss' as colors;
+
+#app[data-zen="true"] {
+    #player[data-collapsable="true"] {
+        transform: translateY(calc(70px));
+        position: fixed;
+
+        &:hover {
+            transform: translateY(0);
+        }
+    }
+}
+
+#player {
+    // position: fixed;
+    // bottom: 0 !important;
+
+    width: 100%;
+    height: fit-content;
+    padding: 20px 10px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    backdrop-filter: blur(20px);
+    border-top: 2px solid rgba(colors.$foreground, .1);
+    background: rgba(colors.$foreground, .05);
+
+    transition: .25s cubic-bezier(0, .78, .17, 1);
+
+    label[data-type="file"],
+    button {
+        border: none;
+        color: colors.$foreground;
+        font-size: 15px;
+
+        padding: .5rem 1rem;
+
+        height: fit-content;
+        width: fit-content;
+
+        transition: .3s cubic-bezier(0, 1, 0.3, 1);
+
+        background: rgba(colors.$foreground, .1);
+
+        &:hover {
+            background: rgba(colors.$foreground, .2);
+        }
+
+        &:active {
+            background: rgba(colors.$foreground, .1);
+        }
+    }
+
+    button[disabled] {
+        opacity: .5;
+
+        &:hover {
+            background: rgba(colors.$foreground, .1);
+        }
+
+        &:active {
+            background: rgba(colors.$foreground, .1);
+        }
+    }
+
+    input[type="file"] {
+        display: none;
+    }
+
+    .queueControls, .controls {
+        display: flex;
+        height: fit-content;
+
+        & > * {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        
+            min-height: 40px;
+            width: fit-content;
+        }
+    }
+
+    .sliders {
+        gap: 1rem;
+        margin: 0 2rem;
+        display: flex;
+        align-items: center;
+
+        #player-slider-progress {
+            width: 20rem;
+            margin: 0 0;
+        }
+
+        #player-slider-volume {
+            width: 5rem;
+        }
+
+        #button-newline {
+            bottom: 20px;
+            right: 20px;
+        }
+
+        #player-label-progress,
+        #player-label-volume {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 100%;
+
+            p {
+                margin: 0 0 5px;
+
+            }
+        }
+    }
+}

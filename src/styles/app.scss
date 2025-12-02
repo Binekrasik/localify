@@ -1,0 +1,52 @@
+@forward './lyrics.scss';
+@forward './player.scss';
+@forward './queue.scss';
+
+@use './colors.scss' as colors;
+
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+body {
+    font-family: 'Instrument Sans';
+    background: colors.$background;
+    color: colors.$foreground;
+    height: 100vh;
+    margin: 0;
+
+    overflow-x: hidden;
+
+    display: flex;
+    flex-direction: column;
+}
+
+* {
+    box-sizing: border-box;
+
+    // scrollbar properties
+    // scrollbar-width: thin;
+    scrollbar-color: rgba(colors.$foreground, .2) transparent;
+}
+
+::selection {
+    background: rgba(colors.$foreground, .3);
+    color: colors.$foreground;
+}
+
+#app {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    height: 100vh;
+    overflow: hidden;
+
+    #contentContainer {
+        display: flex;
+        width: 100%;
+        height: 1fr;
+        overflow: hidden;
+        flex: 1;
+        
+        .mainContainer {
+            flex: 1;
+        }
+    }
+}
