@@ -37,19 +37,15 @@ export class QueueManager extends Manager {
                                 && file.name.toLowerCase().endsWith('.lrc')
                         })
 
-                    if (lyricsFile) {
-                        new Promise(async (resolve, reject) => {
-                            const track = await parseAudioFile(audioFile)
-                            readLrcFile(lyricsFile).then(text => {
-                                this.AddToQueue({ ...track, lyrics: text })
-                                console.log('Track added!')
+                    new Promise(async resolve => {
+                        const track = await parseAudioFile(audioFile)
+                        const text = lyricsFile ? await readLrcFile(lyricsFile) : undefined
 
-                                resolve(undefined)
-                            }).catch(() => reject())
-                        }).catch(() => {
-                            console.warn(`Failed to add track ${audioFile.name}.`)
-                        })
-                    }
+                        this.AddToQueue({ ...track, lyrics: text })
+                        resolve(undefined)
+                    }).catch(() => {
+                        console.warn(`Failed to add track ${audioFile.name}.`)
+                    })
                 })
 
             // reset the input value to allow adding the same files again if needed
