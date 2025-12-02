@@ -147,7 +147,10 @@ $queueMaxWidth: 380px;
 
             width: 100%;
 
-            transition: .3s cubic-bezier(0.63, 0.234, 0, 1), border .5s cubic-bezier(0, 1, 0.3, 1) ;
+            user-select: none;
+            -webkit-user-drag: none;
+
+            transition: .3s cubic-bezier(0.63, 0.234, 0, 1), border .5s cubic-bezier(0, 1, 0.3, 1), background-color .5s cubic-bezier(0, 1, 0.3, 1);
             animation: .4s cubic-bezier(0.63, 0.234, 0, 1) animationQueueItemSlideIn;
 
             &:hover {
@@ -205,26 +208,6 @@ $queueMaxWidth: 380px;
                 p {
                     text-overflow: ellipsis;
                     text-wrap-mode: nowrap;
-                }
-            }
-
-            .contextMenu {
-                position: absolute;
-                display: none;
-                flex-direction: column;
-
-                top: 0;
-                left: 0;
-
-                z-index: 100;
-
-                border: 2px solid rgba(colors.$foreground, .25);
-                backdrop-filter: blur(20px);
-
-
-
-                &[data-visible="true"] {
-                    display: flex;
                 }
             }
         }
