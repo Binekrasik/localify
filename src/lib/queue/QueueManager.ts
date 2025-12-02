@@ -10,12 +10,12 @@ export class QueueManager extends Manager {
     #queueListElement = sqs('#queue') as HTMLDivElement
     #addToQueueInput = sqs('#player-add-to-queue') as HTMLInputElement
 
-    Initialize () {
+    Initialize() {
         // this.#queueListElement.innerHTML = ''
         this.#initHooks()
     }
 
-    #initHooks () {
+    #initHooks() {
         this.#addToQueueInput.addEventListener('change', event => {
             const target = event.target as HTMLInputElement
             const files = target.files
@@ -38,21 +38,16 @@ export class QueueManager extends Manager {
                         })
 
                     if (lyricsFile) {
-                        new Promise(async () => {
-                            let track: Track | undefined
-
-                            parseAudioFile(audioFile).then(parsed => track = parsed)
+                        new Promise(async (resolve, reject) => {
+                            const track = await parseAudioFile(audioFile)
                             readLrcFile(lyricsFile).then(text => {
-                                const listener = () => {
-                                    if (track) {
-                                        this.AddToQueue({ ...track, lyrics: text })
-                                        Managers.UpdateManager.RemoveUpdateListener(listener)
-                                        console.log('Track added!')
-                                    }
-                                }
+                                this.AddToQueue({ ...track, lyrics: text })
+                                console.log('Track added!')
 
-                                Managers.UpdateManager.AddUpdateListener(listener)
-                            })
+                                resolve(undefined)
+                            }).catch(() => reject())
+                        }).catch(() => {
+                            console.warn(`Failed to add track ${audioFile.name}.`)
                         })
                     }
                 })
@@ -72,7 +67,7 @@ export class QueueManager extends Manager {
         }).observe(this.#queueListElement, { childList: true })
     }
 
-    AddToQueue (track: Track) {
+    AddToQueue(track: Track) {
         const trackElement = document.createElement('div')
         trackElement.classList.add('queueItem')
         trackElement.setAttribute('data-playing', track.isPlaying ? 'true' : 'false')
@@ -84,10 +79,10 @@ export class QueueManager extends Manager {
             </div>
 `
         this.#queueListElement.appendChild(trackElement)
-        this.queue.push({...track, domElement: trackElement})
+        this.queue.push({ ...track, domElement: trackElement })
     }
 
-    PlayCurrentTrack () {
+    PlayCurrentTrack() {
         const track = this.queue[0]
         if (!track) return
 
@@ -95,7 +90,7 @@ export class QueueManager extends Manager {
         this.#queueListElement.querySelectorAll('.queueItem')[0].setAttribute('data-playing', 'true')
     }
 
-    RemoveTrackElement (element: HTMLElement) {
+    RemoveTrackElement(element: HTMLElement) {
         element.setAttribute('data-removed', 'true')
         element.style.top = `${element.offsetTop}px`
         element.style.left = `${element.offsetLeft}px`
@@ -107,7 +102,7 @@ export class QueueManager extends Manager {
         })
     }
 
-    PlayNextTrack () {
+    PlayNextTrack() {
         console.log('Playing next track in queue.')
 
         Managers.LyricsManager.ResetLyrics()

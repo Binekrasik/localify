@@ -15,12 +15,11 @@
     display: flex;
     justify-content: center;
 
-    // min-height: 100%;
-
-    // margin-bottom: 50vh;
-
     max-height: 100%;
+    
     overflow: scroll;
+    overflow-x: hidden;
+
     position: relative;
 
     &::before {

@@ -19,12 +19,12 @@ body {
     flex-direction: column;
 }
 
-// ::-webkit-scrollbar {
-//     width: 0px;
-// }
-
 * {
     box-sizing: border-box;
+
+    // scrollbar properties
+    // scrollbar-width: thin;
+    scrollbar-color: rgba(colors.$foreground, .2) transparent;
 }
 
 ::selection {
