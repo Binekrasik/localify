@@ -48,7 +48,7 @@ export class QueueManager extends Manager {
             //         })
             //     })
 
-            const audioFiles  = files.filter(file => file.type.startsWith('audio/'))
+            const audioFiles = files.filter(file => file.type.startsWith('audio/'))
             const lyricsFiles = files.filter(file => file.name.endsWith('.lrc'))
 
             audioFiles.forEach(async audio => {
@@ -88,9 +88,7 @@ export class QueueManager extends Manager {
         `
 
         this.#queueListElement.appendChild(trackElement)
-
         this.queue.push({ ...track, domElement: trackElement })
-        // console.log(this.queue.length)
     }
 
     PlayCurrentTrack() {

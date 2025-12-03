@@ -65,7 +65,7 @@ export class PlayerManager extends Manager {
 
             Managers.UpdateManager.CreateTimer({
                 callback: () => Managers.LyricsManager.UpdateLyricsPositionIndicator(),
-                delay: 50,
+                delay: 20,
             })
         })
 
@@ -123,7 +123,10 @@ export class PlayerManager extends Manager {
         this.controls.volumeSlider.addEventListener('input', () => this.SetVolume())
 
         // progress updating
-        Managers.UpdateManager.AddUpdateListener(() => this.UpdateProgressIndicators())
+        Managers.UpdateManager.CreateTimer({
+            callback: () => this.UpdateProgressIndicators(),
+            delay: 20,
+        })
     }
 
     ToggleZenMode(enable?: boolean) {
