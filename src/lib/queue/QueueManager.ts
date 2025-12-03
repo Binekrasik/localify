@@ -21,33 +21,6 @@ export class QueueManager extends Manager {
             if (!target.files || target.files.length < 1) return
             const files = [...target.files]
 
-            // [...files]
-            //     .filter(file => file.type.startsWith('audio/'))
-            //     .forEach(audioFile => {
-            //         const match = audioFile.name.toLowerCase().match(/(.*)\.[^.]+$/)
-            //         if (!match) return false
-
-            //         const lyricsFile = [...files]
-            //             .find(file => {
-            //                 // console.log('Comparing', file.name.toLowerCase(), 'with', match[1])
-
-            //                 return file.name
-            //                     .toLowerCase()
-            //                     .includes(match[1])
-            //                     && file.name.toLowerCase().endsWith('.lrc')
-            //             })
-
-            //         new Promise(async resolve => {
-            //             const track = await parseAudioFile(audioFile)
-            //             const text = lyricsFile ? await readLrcFile(lyricsFile) : undefined
-
-            //             this.AddToQueue({ ...track, lyrics: text })
-            //             resolve(undefined)
-            //         }).catch(() => {
-            //             console.warn(`Failed to add track ${audioFile.name}.`)
-            //         })
-            //     })
-
             const audioFiles = files.filter(file => file.type.startsWith('audio/'))
             const lyricsFiles = files.filter(file => file.name.endsWith('.lrc'))
 

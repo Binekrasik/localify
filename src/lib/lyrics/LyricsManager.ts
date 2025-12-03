@@ -81,7 +81,7 @@ export class LyricsManager extends Manager {
                 <h1 class="author"></h1>
                 <h1 class="title"></h1>
             </div>
-            `.trim()
+            `
 
         const headerElements = {
             author: sqs('#lyrics .header .author') as HTMLHeadingElement,
@@ -216,7 +216,7 @@ export class LyricsManager extends Manager {
         this.SetAccentColor(track.accentColor)
     }
 
-    UpdateSyncedLyrics(overrideSyncCheck?: boolean): boolean | void {
+    UpdateSyncedLyrics() {
         const time = Managers.PlayerManager.audioElement.currentTime
 
         sqsa('p[data-active="true"]')
