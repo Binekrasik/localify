@@ -11,15 +11,21 @@ export async function parseAudioFile(audioFile: File): Promise<Track> {
     })
 
     const coverImage = metadata.common.picture
-        ? await resizeBase64Image(`data:${metadata.common.picture[0].format};base64,${uint8ArrayToBase64(metadata.common.picture[0].data)}`, 50, 50)
+        ? await resizeBase64Image(
+              `data:${metadata.common.picture[0].format};base64,${uint8ArrayToBase64(metadata.common.picture[0].data)}`,
+              50,
+              50,
+          )
         : undefined
 
     let accentColor: string | undefined
 
-    accentColor = coverImage ? await getAccentColorFromBase64(coverImage) : '#7050fd'
+    accentColor = coverImage
+        ? await getAccentColorFromBase64(coverImage)
+        : '#7050fd'
 
     return {
-        title: metadata.common.title || audioFile.name,
+        title: metadata.common.title || audioFile.name || 'Unknown Title',
         artist: metadata.common.artist || 'Unknown Artist',
         audioFile: audioFile,
         coverImage: coverImage,

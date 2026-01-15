@@ -4,7 +4,7 @@ export interface Timer {
      * @returns returning `true` will stop the timer. Anything other value will be ignored
      */
     callback: () => void | boolean
-    
+
     /**
      * Determines the delay between each iterations of the Timer.
      * Minimum value will be capped to the updateInterval of UpdateManager at the time of Timer creation.

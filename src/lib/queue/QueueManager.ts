@@ -16,61 +16,115 @@ export class QueueManager extends Manager {
     }
 
     #initHooks() {
-        this.#addToQueueInput.addEventListener('change', event => {
+        this.#addToQueueInput.addEventListener('change', (event) => {
             const target = event.target as HTMLInputElement
             const files = target.files
             if (!files || files.length < 1) return
 
-            [...files]
-                .filter(file => file.type.startsWith('audio/'))
-                .forEach(audioFile => {
-                    const match = audioFile.name.toLowerCase().match(/(.*)\.[^.]+$/)
+            const filesArray = [...files]
+            filesArray
+                .filter((file) => file.type.startsWith('audio/'))
+                .forEach((audioFile) => {
+                    const initialTrack = {} as Track
+                    this.AddInitialTrackElement(initialTrack)
+
+                    const match = audioFile.name
+                        .toLowerCase()
+                        .match(/(.*)\.[^.]+$/)
                     if (!match) return false
 
-                    const lyricsFile = [...files]
-                        .find(file => {
-                            console.log('Comparing', file.name.toLowerCase(), 'with', match[1])
+                    const lyricsFile = [...files].find((file) => {
+                        console.log(
+                            'Comparing',
+                            file.name.toLowerCase(),
+                            'with',
+                            match[1],
+                        )
 
-                            return file.name
-                                .toLowerCase()
-                                .includes(match[1])
-                                && file.name.toLowerCase().endsWith('.lrc')
-                        })
+                        return (
+                            file.name.toLowerCase().includes(match[1]) &&
+                            file.name.toLowerCase().endsWith('.lrc')
+                        )
+                    })
 
-                    if (lyricsFile) {
-                        new Promise(async (resolve, reject) => {
-                            const track = await parseAudioFile(audioFile)
-                            readLrcFile(lyricsFile).then(text => {
-                                this.AddToQueue({ ...track, lyrics: text })
-                                console.log('Track added!')
-
-                                resolve(undefined)
-                            }).catch(() => reject())
-                        }).catch(() => {
-                            console.warn(`Failed to add track ${audioFile.name}.`)
-                        })
-                    }
+                    this.AddTrackFromFile(audioFile, lyricsFile, initialTrack)
                 })
 
             // reset the input value to allow adding the same files again if needed
             this.#addToQueueInput.value = ''
         })
 
-        new MutationObserver(mutationList => {
-            mutationList.forEach(mutation => {
+        new MutationObserver((mutationList) => {
+            mutationList.forEach((mutation) => {
                 if (mutation.type !== 'childList') return
 
-                if (this.#queueListElement.querySelectorAll('.queueItem').length === 0)
-                    sqs('#queueContainer .queueEmptyIndicator').removeAttribute('data-hidden')
-                else sqs('#queueContainer .queueEmptyIndicator').setAttribute('data-hidden', 'true')
+                if (
+                    this.#queueListElement.querySelectorAll('.queueItem')
+                        .length === 0
+                )
+                    sqs('#queueContainer .queueEmptyIndicator').removeAttribute(
+                        'data-hidden',
+                    )
+                else
+                    sqs('#queueContainer .queueEmptyIndicator').setAttribute(
+                        'data-hidden',
+                        'true',
+                    )
             })
         }).observe(this.#queueListElement, { childList: true })
     }
 
+    AddTrackFromFile(audioFile: File, lyricsFile?: File, initialTrack?: Track) {
+        new Promise<void>(async (resolve, _reject) => {
+            let track = await parseAudioFile(audioFile)
+
+            if (initialTrack?.domElement)
+                track.domElement = initialTrack.domElement
+
+            let text: string | undefined
+            if (lyricsFile) {
+                try {
+                    text = await readLrcFile(lyricsFile)
+                } catch (exception) {
+                    console.warn(
+                        `Failed to load lyrics for track ${track.title}`,
+                    )
+                    // continue without lyrics
+                }
+            }
+
+            this.AddToQueue({ ...track, lyrics: text })
+            console.log('Track added!')
+
+            resolve()
+        }).catch(() => {
+            console.warn(`Failed to add track ${audioFile.name}.`)
+        })
+    }
+
+    AddInitialTrackElement(track: Track) {
+        const element = document.createElement('div')
+        element.classList.add('queueItem')
+        element.innerHTML = `
+            <img src="/assets/loader.svg" class="loader">
+            <div class="trackInfo">
+                <p class="name" data-loading="true">${track.title}</p>
+                <p class="lyricsStatus" data-loading="true">${track.lyrics ? 'lyrics loaded' : 'no lyrics'}</p>
+            </div>
+        `
+
+        this.#queueListElement.appendChild(element)
+        track.domElement = element
+    }
+
     AddToQueue(track: Track) {
-        const trackElement = document.createElement('div')
+        const trackElement = track.domElement || document.createElement('div')
+
         trackElement.classList.add('queueItem')
-        trackElement.setAttribute('data-playing', track.isPlaying ? 'true' : 'false')
+        trackElement.setAttribute(
+            'data-playing',
+            track.isPlaying ? 'true' : 'false',
+        )
         trackElement.innerHTML = `
             <img src="${track.coverImage ? track.coverImage : ''}" alt="No image" >
             <div class="trackInfo">
@@ -87,7 +141,9 @@ export class QueueManager extends Manager {
         if (!track) return
 
         Managers.PlayerManager.LoadTrack(track, true)
-        this.#queueListElement.querySelectorAll('.queueItem')[0].setAttribute('data-playing', 'true')
+        this.#queueListElement
+            .querySelectorAll('.queueItem')[0]
+            .setAttribute('data-playing', 'true')
     }
 
     RemoveTrackElement(element: HTMLElement) {
@@ -97,7 +153,9 @@ export class QueueManager extends Manager {
         element.style.position = 'absolute'
 
         Managers.UpdateManager.CreateTimer({
-            callback: () => { element.remove() },
+            callback: () => {
+                element.remove()
+            },
             delay: 300,
         })
     }

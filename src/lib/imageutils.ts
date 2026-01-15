@@ -5,7 +5,11 @@ import ColorThief from 'colorthief'
  * @param image a base64-encoded image
  * @returns resized image as a base64 string
  */
-export async function resizeBase64Image(image: string, width: number, height: number): Promise<string> {
+export async function resizeBase64Image(
+    image: string,
+    width: number,
+    height: number,
+): Promise<string> {
     const canvas = document.createElement('canvas')
 
     const imageElement = new Image()
@@ -14,21 +18,20 @@ export async function resizeBase64Image(image: string, width: number, height: nu
     canvas.width = width
     canvas.height = height
 
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
         imageElement.onload = () => {
             canvas
                 .getContext('2d')!
                 .drawImage(imageElement, 0, 0, width, height)
 
             resolve(canvas.toDataURL())
-
             imageElement.remove()
         }
     })
 }
 
 /**
- * Grabs a single accent color of the provided image and returns it as a css-compatible color string.
+ * Grabs a single accent color from the provided image and returns it in a css-compatible rgb color format.
  * @param image a base64-encoded image
  * @returns css-compatible color string
  */
@@ -36,7 +39,7 @@ export async function getAccentColorFromBase64(image: string): Promise<string> {
     const thief = new ColorThief()
     const imageElement = new Image()
 
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
         imageElement.onload = () => {
             const colors = thief.getColor(imageElement, 1)
             imageElement.remove()
