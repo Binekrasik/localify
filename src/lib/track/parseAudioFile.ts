@@ -1,7 +1,7 @@
-import { parseWebStream } from 'music-metadata'
-import { uint8ArrayToBase64 } from 'uint8array-extras'
-import type { Track } from './Track'
-import { getAccentColorFromBase64, resizeBase64Image } from '../imageutils'
+import { parseWebStream } from "music-metadata"
+import { uint8ArrayToBase64 } from "uint8array-extras"
+import type { Track } from "./Track"
+import { getAccentColorFromBase64, resizeBase64Image } from "../imageutils"
 
 export async function parseAudioFile(audioFile: File): Promise<Track> {
     const metadata = await parseWebStream(audioFile.stream(), {
@@ -22,11 +22,11 @@ export async function parseAudioFile(audioFile: File): Promise<Track> {
 
     accentColor = coverImage
         ? await getAccentColorFromBase64(coverImage)
-        : '#7050fd'
+        : "#7050fd"
 
     return {
-        title: metadata.common.title || audioFile.name || 'Unknown Title',
-        artist: metadata.common.artist || 'Unknown Artist',
+        title: metadata.common.title || audioFile.name || "Unknown Title",
+        artist: metadata.common.artist || "Unknown Artist",
         audioFile: audioFile,
         coverImage: coverImage,
         isPlaying: false,

@@ -24,11 +24,11 @@
 
 @keyframes animationPlaceholderShine {
     0% {
-        transform: translateX(-20px) skewX(-15deg);
+        background-position-x: -40px;
     }
 
     100% {
-        transform: translateX(200px) skewX(-15deg);
+        background-position-x: calc(100% + 40px);
     }
 }
 
@@ -200,7 +200,7 @@ $queueMaxWidth: 380px;
             }
 
             .loader {
-                animation: animationSpin 1s infinite;
+                animation: animationSpin 1s infinite linear;
 
                 opacity: 0.75;
 
@@ -212,28 +212,33 @@ $queueMaxWidth: 380px;
             p {
                 font-weight: 400;
                 font-size: 15px;
+                width: fit-content;
 
                 &[data-loading="true"] {
-                    position: relative;
                     clip-path: border-box;
+                    position: relative;
 
-                    &::before {
-                        content: "";
+                    span {
+                        // color: transparent;
                         display: block;
-                        position: absolute;
 
-                        width: 10px;
+                        width: calc(100% + 20px);
+                        transform: translateX(-10px) skewX(-25deg);
                         height: 100%;
-                        background: rgba(colors.$foreground, 0.5);
 
-                        transform: skewX(-15deg);
+                        background: linear-gradient(
+                                90deg,
+                                rgba(colors.$foreground, 0.5) 50%,
+                                transparent 0%
+                            )
+                            no-repeat;
+
+                        background-size: 40px 100%;
                         animation: animationPlaceholderShine 1s infinite;
                     }
 
-                    width: 200px;
-
+                    background: rgba(colors.$foreground, 0.15);
                     color: transparent;
-                    background: rgba(colors.$foreground, 0.25);
                 }
             }
 
@@ -252,9 +257,7 @@ $queueMaxWidth: 380px;
                 }
 
                 &[data-loading="true"] {
-                    width: 100px;
                     margin-top: 5px;
-                    background: rgba(colors.$foreground, 0.25);
                 }
             }
 

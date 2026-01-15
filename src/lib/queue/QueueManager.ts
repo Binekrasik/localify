@@ -1,14 +1,14 @@
-import sqs from '../shortQuerySelector'
-import { Manager } from '../Manager'
-import { Managers } from '../state/Managers'
-import type { Track } from '../track/Track'
-import { parseAudioFile } from '../track/parseAudioFile'
-import { readLrcFile } from '../lyrics/lrcutils'
+import sqs from "../shortQuerySelector"
+import { Manager } from "../Manager"
+import { Managers } from "../state/Managers"
+import type { Track } from "../track/Track"
+import { parseAudioFile } from "../track/parseAudioFile"
+import { readLrcFile } from "../lyrics/lrcutils"
 
 export class QueueManager extends Manager {
     queue: Track[] = []
-    #queueListElement = sqs('#queue') as HTMLDivElement
-    #addToQueueInput = sqs('#player-add-to-queue') as HTMLInputElement
+    #queueListElement = sqs("#queue") as HTMLDivElement
+    #addToQueueInput = sqs("#player-add-to-queue") as HTMLInputElement
 
     Initialize() {
         // this.#queueListElement.innerHTML = ''
@@ -16,14 +16,14 @@ export class QueueManager extends Manager {
     }
 
     #initHooks() {
-        this.#addToQueueInput.addEventListener('change', (event) => {
+        this.#addToQueueInput.addEventListener("change", (event) => {
             const target = event.target as HTMLInputElement
             const files = target.files
             if (!files || files.length < 1) return
 
             const filesArray = [...files]
             filesArray
-                .filter((file) => file.type.startsWith('audio/'))
+                .filter((file) => file.type.startsWith("audio/"))
                 .forEach((audioFile) => {
                     const initialTrack = {} as Track
                     this.AddInitialTrackElement(initialTrack)
@@ -35,15 +35,15 @@ export class QueueManager extends Manager {
 
                     const lyricsFile = [...files].find((file) => {
                         console.log(
-                            'Comparing',
+                            "Comparing",
                             file.name.toLowerCase(),
-                            'with',
+                            "with",
                             match[1],
                         )
 
                         return (
                             file.name.toLowerCase().includes(match[1]) &&
-                            file.name.toLowerCase().endsWith('.lrc')
+                            file.name.toLowerCase().endsWith(".lrc")
                         )
                     })
 
@@ -51,24 +51,24 @@ export class QueueManager extends Manager {
                 })
 
             // reset the input value to allow adding the same files again if needed
-            this.#addToQueueInput.value = ''
+            this.#addToQueueInput.value = ""
         })
 
         new MutationObserver((mutationList) => {
             mutationList.forEach((mutation) => {
-                if (mutation.type !== 'childList') return
+                if (mutation.type !== "childList") return
 
                 if (
-                    this.#queueListElement.querySelectorAll('.queueItem')
+                    this.#queueListElement.querySelectorAll(".queueItem")
                         .length === 0
                 )
-                    sqs('#queueContainer .queueEmptyIndicator').removeAttribute(
-                        'data-hidden',
+                    sqs("#queueContainer .queueEmptyIndicator").removeAttribute(
+                        "data-hidden",
                     )
                 else
-                    sqs('#queueContainer .queueEmptyIndicator').setAttribute(
-                        'data-hidden',
-                        'true',
+                    sqs("#queueContainer .queueEmptyIndicator").setAttribute(
+                        "data-hidden",
+                        "true",
                     )
             })
         }).observe(this.#queueListElement, { childList: true })
@@ -94,7 +94,7 @@ export class QueueManager extends Manager {
             }
 
             this.AddToQueue({ ...track, lyrics: text })
-            console.log('Track added!')
+            console.log("Track added!")
 
             resolve()
         }).catch(() => {
@@ -103,13 +103,13 @@ export class QueueManager extends Manager {
     }
 
     AddInitialTrackElement(track: Track) {
-        const element = document.createElement('div')
-        element.classList.add('queueItem')
+        const element = document.createElement("div")
+        element.classList.add("queueItem")
         element.innerHTML = `
             <img src="/assets/loader.svg" class="loader">
             <div class="trackInfo">
-                <p class="name" data-loading="true">${track.title}</p>
-                <p class="lyricsStatus" data-loading="true">${track.lyrics ? 'lyrics loaded' : 'no lyrics'}</p>
+                <p class="name" data-loading="true"><span>loading some weird track</span></p>
+                <p class="lyricsStatus" data-loading="true"><span>loading lyrics</span></p>
             </div>
         `
 
@@ -118,18 +118,18 @@ export class QueueManager extends Manager {
     }
 
     AddToQueue(track: Track) {
-        const trackElement = track.domElement || document.createElement('div')
+        const trackElement = track.domElement || document.createElement("div")
 
-        trackElement.classList.add('queueItem')
+        trackElement.classList.add("queueItem")
         trackElement.setAttribute(
-            'data-playing',
-            track.isPlaying ? 'true' : 'false',
+            "data-playing",
+            track.isPlaying ? "true" : "false",
         )
         trackElement.innerHTML = `
-            <img src="${track.coverImage ? track.coverImage : ''}" alt="No image" >
+            <img src="${track.coverImage ? track.coverImage : ""}" alt="No image" >
             <div class="trackInfo">
                 <p class="name">${track.title}</p>
-                <p class="lyricsStatus" data-loaded="${track.lyrics ? 'true' : 'false'}">${track.lyrics ? 'lyrics loaded' : 'no lyrics'}</p>
+                <p class="lyricsStatus" data-loaded="${track.lyrics ? "true" : "false"}">${track.lyrics ? "lyrics loaded" : "no lyrics"}</p>
             </div>
 `
         this.#queueListElement.appendChild(trackElement)
@@ -142,15 +142,15 @@ export class QueueManager extends Manager {
 
         Managers.PlayerManager.LoadTrack(track, true)
         this.#queueListElement
-            .querySelectorAll('.queueItem')[0]
-            .setAttribute('data-playing', 'true')
+            .querySelectorAll(".queueItem")[0]
+            .setAttribute("data-playing", "true")
     }
 
     RemoveTrackElement(element: HTMLElement) {
-        element.setAttribute('data-removed', 'true')
+        element.setAttribute("data-removed", "true")
         element.style.top = `${element.offsetTop}px`
         element.style.left = `${element.offsetLeft}px`
-        element.style.position = 'absolute'
+        element.style.position = "absolute"
 
         Managers.UpdateManager.CreateTimer({
             callback: () => {
@@ -161,7 +161,7 @@ export class QueueManager extends Manager {
     }
 
     PlayNextTrack() {
-        console.log('Playing next track in queue.')
+        console.log("Playing next track in queue.")
 
         Managers.LyricsManager.ResetLyrics()
         Managers.PlayerManager.SkipCurrentTrack()
@@ -175,7 +175,7 @@ export class QueueManager extends Manager {
         if (this.queue.length === 0) return
 
         this.queue[0].isPlaying = true
-        this.queue[0].domElement!.setAttribute('data-playing', 'true')
+        this.queue[0].domElement!.setAttribute("data-playing", "true")
         Managers.PlayerManager.LoadTrack(this.queue[0], true)
     }
 }
