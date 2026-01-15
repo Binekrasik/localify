@@ -4,11 +4,7 @@ import type { Track } from "./Track"
 import { getAccentColorFromBase64, resizeBase64Image } from "../imageutils"
 
 export async function parseAudioFile(audioFile: File): Promise<Track> {
-    const metadata = await parseWebStream(audioFile.stream(), {
-        mimeType: audioFile.type,
-        size: audioFile.size,
-        path: audioFile.name,
-    })
+    const metadata = await parseWebStream(audioFile.stream())
 
     const coverImage = metadata.common.picture
         ? await resizeBase64Image(
@@ -30,6 +26,6 @@ export async function parseAudioFile(audioFile: File): Promise<Track> {
         audioFile: audioFile,
         coverImage: coverImage,
         isPlaying: false,
-        accentColor: accentColor,
+        accentColor: '#222',
     }
 }

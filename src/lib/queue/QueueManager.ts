@@ -18,37 +18,20 @@ export class QueueManager extends Manager {
     #initHooks() {
         this.#addToQueueInput.addEventListener("change", (event) => {
             const target = event.target as HTMLInputElement
-            const files = target.files
-            if (!files || files.length < 1) return
+            if (!target.files || target.files.length < 1) return
+            const files = [...target.files]
 
-            const filesArray = [...files]
-            filesArray
-                .filter((file) => file.type.startsWith("audio/"))
-                .forEach((audioFile) => {
-                    const initialTrack = {} as Track
-                    this.AddInitialTrackElement(initialTrack)
+            const audioFiles = files.filter(file => file.type.startsWith('audio/'))
+            const lyricsFiles = files.filter(file => file.name.endsWith('.lrc'))
 
-                    const match = audioFile.name
-                        .toLowerCase()
-                        .match(/(.*)\.[^.]+$/)
-                    if (!match) return false
+            audioFiles.forEach(async audio => {
+                const name = audio.name.toLowerCase().match(/(.*)\.[^.]+$/)
+                const lyricsFile = name ? lyricsFiles.find(file => file.name.toLowerCase().includes(name[1])) : undefined
+                const lyrics = lyricsFile ? await readLrcFile(lyricsFile).catch() : undefined
 
-                    const lyricsFile = [...files].find((file) => {
-                        console.log(
-                            "Comparing",
-                            file.name.toLowerCase(),
-                            "with",
-                            match[1],
-                        )
-
-                        return (
-                            file.name.toLowerCase().includes(match[1]) &&
-                            file.name.toLowerCase().endsWith(".lrc")
-                        )
-                    })
-
-                    this.AddTrackFromFile(audioFile, lyricsFile, initialTrack)
-                })
+                const track = await parseAudioFile(audio)
+                this.AddToQueue({ ...track, lyrics })
+            })
 
             // reset the input value to allow adding the same files again if needed
             this.#addToQueueInput.value = ""
@@ -126,12 +109,13 @@ export class QueueManager extends Manager {
             track.isPlaying ? "true" : "false",
         )
         trackElement.innerHTML = `
-            <img src="${track.coverImage ? track.coverImage : ""}" alt="No image" >
+            <img src="${track.coverImage ? track.coverImage : ''}" alt="No image" draggable="false" >
             <div class="trackInfo">
                 <p class="name">${track.title}</p>
                 <p class="lyricsStatus" data-loaded="${track.lyrics ? "true" : "false"}">${track.lyrics ? "lyrics loaded" : "no lyrics"}</p>
             </div>
-`
+        `
+
         this.#queueListElement.appendChild(trackElement)
         this.queue.push({ ...track, domElement: trackElement })
     }
