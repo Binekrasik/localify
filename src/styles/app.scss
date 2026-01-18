@@ -1,6 +1,7 @@
 @forward './lyrics.scss';
 @forward './player.scss';
 @forward './queue.scss';
+@forward './contextMenu.scss';
 
 @use './colors.scss' as colors;
 
@@ -44,7 +45,7 @@ body {
         height: 1fr;
         overflow: hidden;
         flex: 1;
-        
+
         .mainContainer {
             flex: 1;
         }

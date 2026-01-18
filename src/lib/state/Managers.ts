@@ -1,3 +1,4 @@
+import { ContextMenuManager } from '../interaction/ContextMenuManager'
 import { LyricsManager } from '../lyrics/LyricsManager'
 import { PlayerManager } from '../player/PlayerManager'
 import { QueueManager } from '../queue/QueueManager'
@@ -8,4 +9,5 @@ export const Managers = {
     PlayerManager: new PlayerManager(),
     LyricsManager: new LyricsManager(),
     QueueManager: new QueueManager(),
+    ContextMenuManager: new ContextMenuManager(),
 }

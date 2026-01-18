@@ -1,0 +1,51 @@
+@use './colors.scss' as colors;
+
+#appContextMenu {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    z-index: -100;
+    opacity: 0;
+
+    transition: opacity cubic-bezier(0.63, 0.234, 0, 1) .2s;
+
+    backdrop-filter: blur(20px);
+    background: rgba(#777, .05);
+    border: 2px solid rgba(colors.$foreground, .15);
+
+    cursor: default;
+    user-select: none;
+
+    &[data-visible="true"] {
+        z-index: 100;
+        opacity: 1;
+    }
+
+    p {
+        margin: 0;
+    }
+
+    .clickable {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+
+        border: none;
+        height: fit-content;
+
+        transition: .3s cubic-bezier(0, 1, 0.3, 1);
+
+        font-size: 15px;
+        padding: 1rem;
+
+        color: colors.$foreground;
+
+        &:hover {
+            background: rgba(colors.$foreground, .15);
+        }
+
+        &:active {
+            background: rgba(colors.$foreground, .05);
+        }
+    }
+}

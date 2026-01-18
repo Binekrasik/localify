@@ -169,6 +169,8 @@ $queueMaxWidth: 380px;
             padding: 10px;
             display: flex;
 
+            position: relative;
+
             border: 2px solid transparent;
 
             width: 100%;
@@ -178,6 +180,9 @@ $queueMaxWidth: 380px;
                 border 0.5s cubic-bezier(0, 1, 0.3, 1);
             animation: 0.4s cubic-bezier(0.63, 0.234, 0, 1)
                 animationQueueItemSlideIn;
+
+            cursor: default;
+            user-select: none;
 
             &:hover {
                 border-color: rgba(colors.$foreground, 0.25);
@@ -190,7 +195,7 @@ $queueMaxWidth: 380px;
 
                 background: rgba(colors.$foreground, 0.15);
 
-                border-left-color: rgba(colors.$foreground, 0.25);
+                border-left-color: rgba(colors.$foreground, .25);
                 padding-left: 20px;
             }
 

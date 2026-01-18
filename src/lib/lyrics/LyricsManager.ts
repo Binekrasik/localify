@@ -69,9 +69,9 @@ export class LyricsManager extends Manager {
         else if (track?.lyrics)
             this.state.text = track.lyrics
         else this.state.text = '[ar: no lyrics]\n[ti: There\'s absolutely nothing lol]'
-    
+
         console.log('Parsing lyrics...')
-    
+
         this.#lyricsElement.innerHTML =
             `
             <div class="header">
@@ -84,18 +84,18 @@ export class LyricsManager extends Manager {
             author: sqs('#lyrics .header .author') as HTMLHeadingElement,
             title: sqs('#lyrics .header .title') as HTMLHeadingElement,
         }
-    
+
         this.state.text
             .split('\n')
             .forEach(line => {
                 // parse line with the timestamp regex - [mm:ss..*?]<text>
                 const match = line.match(/\[(\d{2}):(\d{2}\..*?)\](.*)/)
-    
+
                 // check if matched
                 if (match) {
                     const minutes = parseInt(match[1], 10)
                     const seconds = parseFloat(match[2])
-    
+
                     // parse time into seconds
                     let time = minutes * 60 + seconds
 
@@ -104,11 +104,11 @@ export class LyricsManager extends Manager {
                         this.state.lines.push({ time: 0, index, text: '♪' })
                         index++
                     }
-    
+
                     // prevent HTML injection
                     const text = match[3].trim().length > 0 ? match[3].replaceAll(/\<.*?\>/gmi, '').trim() : '♪'
                     this.state.lines.push({ time, index, text })
-    
+
                     index++
                 } else {
                     // match lrc title
@@ -130,7 +130,7 @@ export class LyricsManager extends Manager {
             if (headerElements.title.innerText === '')
                 headerElements.title.innerText = track.title
         }
-    
+
         // insert all lines into the lyrics element
         this.#lyricsElement.innerHTML += this.state.lines.map(line =>
             `<p
@@ -142,9 +142,9 @@ export class LyricsManager extends Manager {
                 ${editingMode ? `<span class="timestamp">${getTimestampTag(line.time)}</span>` : ''}<span class="textContent">${line.text}</span>
             </p>`.trim()
         ).join('')
-    
+
         this.#lyricsElement.innerHTML += '<h2 class="theEnd">fin.</h2>'
-    
+
         this.#lyricsElement
             .querySelectorAll('.lyricsLine')
             .forEach(p => {
@@ -155,7 +155,7 @@ export class LyricsManager extends Manager {
                     this.SyncLyrics()
                 })
             })
-    
+
         // this.#lyricsEditor.UpdateLineIndicator()
     }
 
@@ -179,10 +179,8 @@ export class LyricsManager extends Manager {
     UpdateLyricsPositionIndicator (overridePaused: boolean = false): boolean | void {
         if (Managers.PlayerManager.audioElement.paused && !overridePaused) return true
 
-        console.log('UpdateLyricsPositionIndicator')
-
         if (!this.state.currentLineElement) return
-        
+
         const nextIndex = this.state.currentLineIndex + 1 < this.state.lines.length ? this.state.currentLineIndex + 1 : -1
         let nextTime = nextIndex !== -1 ? parseFloat(sqs(`.lyricsLine[data-index="${nextIndex}"]`).getAttribute('data-time')!) : Managers.PlayerManager.audioElement.duration
 
@@ -217,26 +215,26 @@ export class LyricsManager extends Manager {
 
     UpdateSyncedLyrics () {
         const time = Managers.PlayerManager.audioElement.currentTime
-    
+
         sqsa('p[data-active="true"]')
             .filter(line => line.getAttribute('data-index') !== `${this.state.currentLineIndex}` || this.state.currentLineIndex === -1)
             .forEach(line => line.setAttribute('data-active', 'false'))
-    
+
         // find the current line
         this.state.lines
             .filter((line, index) => line.time <= time && (this.state.lines[index + 1]?.time > time || index + 1 === this.state.lines.length))
             .forEach(line => {
                 const p = document.querySelector(`p[data-index="${line.index}"]`) as HTMLParagraphElement
                 if (!p) return
-    
+
                 // console.log(`Current line: ${ line.text }`)
                 if (this.state.synced) p.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    
+
                 p.setAttribute('data-active', 'true')
                 this.state.currentLineIndex = line.index
                 this.state.currentLineElement = p
             })
-    
+
         if (time === Managers.PlayerManager.audioElement.duration) {
             this.state.currentLineIndex = -1
         }

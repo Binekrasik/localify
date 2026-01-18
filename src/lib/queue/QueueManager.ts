@@ -13,6 +13,7 @@ export class QueueManager extends Manager {
     Initialize() {
         // this.#queueListElement.innerHTML = ''
         this.#initHooks()
+        // this.AddInitialTrackElement({} as Track)
     }
 
     #initHooks() {
@@ -58,18 +59,10 @@ export class QueueManager extends Manager {
             mutationList.forEach((mutation) => {
                 if (mutation.type !== "childList") return
 
-                if (
-                    this.#queueListElement.querySelectorAll(".queueItem")
-                        .length === 0
-                )
-                    sqs("#queueContainer .queueEmptyIndicator").removeAttribute(
-                        "data-hidden",
-                    )
+                if (this.#queueListElement.querySelectorAll(".queueItem").length === 0)
+                    sqs("#queueContainer .queueEmptyIndicator").removeAttribute("data-hidden")
                 else
-                    sqs("#queueContainer .queueEmptyIndicator").setAttribute(
-                        "data-hidden",
-                        "true",
-                    )
+                    sqs("#queueContainer .queueEmptyIndicator").setAttribute("data-hidden", "true")
             })
         }).observe(this.#queueListElement, { childList: true })
     }
@@ -86,9 +79,7 @@ export class QueueManager extends Manager {
                 try {
                     text = await readLrcFile(lyricsFile)
                 } catch (exception) {
-                    console.warn(
-                        `Failed to load lyrics for track ${track.title}`,
-                    )
+                    console.warn(`Failed to load lyrics for track ${track.title}`)
                     // continue without lyrics
                 }
             }
@@ -125,13 +116,73 @@ export class QueueManager extends Manager {
             "data-playing",
             track.isPlaying ? "true" : "false",
         )
+
         trackElement.innerHTML = `
-            <img src="${track.coverImage ? track.coverImage : ""}" alt="No image" >
+            <img src="${track.coverImage || ""}" alt="No image" >
             <div class="trackInfo">
                 <p class="name">${track.title}</p>
-                <p class="lyricsStatus" data-loaded="${track.lyrics ? "true" : "false"}">${track.lyrics ? "lyrics loaded" : "no lyrics"}</p>
+                <p class="lyricsStatus" data-loaded="${Boolean(track.lyrics)}">${track.lyrics ? "lyrics loaded" : "no lyrics"}</p>
             </div>
-`
+        `
+
+        trackElement.addEventListener('mousedown', event => {
+            if (event.button != 2)
+                return
+
+            const first = document.createElement('p')
+            first.innerText = 'Move to the top'
+            const firstIcon = document.createElement('img')
+            firstIcon.src = '/assets/icons/keyboard_double_arrow_up.svg'
+
+            const second = document.createElement('p')
+            second.innerText = 'Move up'
+            const secondIcon = document.createElement('img')
+            secondIcon.src = '/assets/icons/arrow_upward.svg'
+
+            const third = document.createElement('p')
+            third.innerText = 'Move down'
+            const thirdIcon = document.createElement('img')
+            thirdIcon.src = '/assets/icons/arrow_downward.svg'
+
+            const fourth = document.createElement('p')
+            fourth.innerText = 'Remove from queue'
+            const fourthIcon = document.createElement('img')
+            fourthIcon.src = '/assets/icons/delete.svg'
+
+            Managers.ContextMenuManager.PopulateContextMenu([
+                {
+                    icon: firstIcon,
+                    text: first,
+                    onClick: event => {
+                        alert('Moved to top')
+                    }
+                },
+                {
+                    icon: secondIcon,
+                    text: second,
+                    onClick: event => {
+                        alert('Moved up')
+                    }
+                },
+                {
+                    icon: thirdIcon,
+                    text: third,
+                    onClick: event => {
+                        alert('Moved down')
+                    }
+                },
+                {
+                    icon: fourthIcon,
+                    text: fourth,
+                    onClick: event => {
+                        alert('Removed')
+                    }
+                },
+            ])
+
+            Managers.ContextMenuManager.ShowContextMenu(event.clientX, event.clientY)
+        })
+
         this.#queueListElement.appendChild(trackElement)
         this.queue.push({ ...track, domElement: trackElement })
     }
@@ -153,9 +204,7 @@ export class QueueManager extends Manager {
         element.style.position = "absolute"
 
         Managers.UpdateManager.CreateTimer({
-            callback: () => {
-                element.remove()
-            },
+            callback: () => element.remove(),
             delay: 300,
         })
     }
