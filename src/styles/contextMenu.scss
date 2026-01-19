@@ -1,4 +1,4 @@
-@use './colors.scss' as colors;
+@use "./colors.scss" as colors;
 
 #appContextMenu {
     position: absolute;
@@ -7,11 +7,11 @@
     z-index: -100;
     opacity: 0;
 
-    transition: opacity cubic-bezier(0.63, 0.234, 0, 1) .2s;
+    transition: opacity cubic-bezier(0.63, 0.234, 0, 1) 0.2s;
 
     backdrop-filter: blur(20px);
-    background: rgba(#777, .05);
-    border: 2px solid rgba(colors.$foreground, .15);
+    background: rgba(#777, 0.05);
+    border: 2px solid rgba(colors.$foreground, 0.15);
 
     cursor: default;
     user-select: none;
@@ -33,19 +33,19 @@
         border: none;
         height: fit-content;
 
-        transition: .3s cubic-bezier(0, 1, 0.3, 1);
+        transition: 0.3s cubic-bezier(0, 1, 0.3, 1);
 
         font-size: 15px;
-        padding: 1rem;
+        padding: 0.75rem;
 
         color: colors.$foreground;
 
         &:hover {
-            background: rgba(colors.$foreground, .15);
+            background: rgba(colors.$foreground, 0.15);
         }
 
         &:active {
-            background: rgba(colors.$foreground, .05);
+            background: rgba(colors.$foreground, 0.05);
         }
     }
 }
