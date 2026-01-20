@@ -1,12 +1,15 @@
 import { createElement } from '../domUtils'
 import type { ContextMenuEntry } from '../interaction/ContextMenuEntry'
+import { Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
 
-export class QueueTrackElement {
+export class QueueTrackEntry {
+    order: number
     track: Track
 
-    constructor(track: Track) {
+    constructor(track: Track, order: number) {
         this.track = track
+        this.order = order
     }
 
     GetContextMenuEntries(): ContextMenuEntry[] {
@@ -16,7 +19,7 @@ export class QueueTrackElement {
             icon: createElement('img', { src: '/assets/icons/keyboard_double_arrow_up.svg' }),
             text: createElement('p', {}, 'Move to top'),
             onClick: event => {
-                alert('Moved to top')
+                Managers.QueueManager.SetTrackOrder(this, 0)
             },
         })
 

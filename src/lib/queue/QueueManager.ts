@@ -4,10 +4,10 @@ import { Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
 import { parseAudioFile } from '../track/parseAudioFile'
 import { readLrcFile } from '../lyrics/lrcutils'
-import { QueueTrackElement } from './QueueTrackElement'
+import { QueueTrackEntry } from './QueueTrackElement'
 
 export class QueueManager extends Manager {
-    queue: Track[] = []
+    queue: QueueTrackEntry[] = []
     #queueListElement = sqs('#queue') as HTMLDivElement
     #addToQueueInput = sqs('#player-add-to-queue') as HTMLInputElement
 
@@ -36,12 +36,7 @@ export class QueueManager extends Manager {
                     if (!match) return false
 
                     const lyricsFile = [...files].find(file => {
-                        console.log(
-                            'Comparing',
-                            file.name.toLowerCase(),
-                            'with',
-                            match[1],
-                        )
+                        console.log(`Comparing ${file.name.toLowerCase()} with ${match[1]}`)
 
                         return (
                             file.name.toLowerCase().includes(match[1]) &&
@@ -120,7 +115,7 @@ export class QueueManager extends Manager {
     }
 
     AddToQueue(track: Track) {
-        const trackElement = new QueueTrackElement(track)
+        const trackEntry = new QueueTrackEntry(track, -1)
         const domTrackElement = track.domElement || document.createElement('div')
 
         domTrackElement.classList.add('queueItem')
@@ -140,19 +135,24 @@ export class QueueManager extends Manager {
         domTrackElement.addEventListener('mousedown', event => {
             if (event.button != 2) return
 
-            Managers.ContextMenuManager.PopulateContextMenu(trackElement.GetContextMenuEntries())
+            Managers.ContextMenuManager.PopulateContextMenu(trackEntry.GetContextMenuEntries())
             Managers.ContextMenuManager.ShowContextMenu(event.clientX, event.clientY )
         })
 
+        trackEntry.track.domElement = domTrackElement
+        trackEntry.order = this.queue.length
+        domTrackElement.style.order = `${trackEntry.order}`
+        domTrackElement.setAttribute('data-order', `${trackEntry.order}`)
+
         this.#queueListElement.appendChild(domTrackElement)
-        this.queue.push({ ...track, domElement: domTrackElement })
+        this.queue.push(trackEntry)
     }
 
     PlayCurrentTrack() {
-        const track = this.queue[0]
-        if (!track) return
+        const trackEntry = this.queue[0]
+        if (!trackEntry) return
 
-        Managers.PlayerManager.LoadTrack(track, true)
+        Managers.PlayerManager.LoadTrack(trackEntry.track, true)
         this.#queueListElement
             .querySelectorAll('.queueItem')[0]
             .setAttribute('data-playing', 'true')
@@ -170,6 +170,39 @@ export class QueueManager extends Manager {
         })
     }
 
+    SetTrackOrder(trackEntry: QueueTrackEntry, order: number) {
+        if (order < 0) {
+            console.warn('Cannot reorder a track with order less than 0')
+            return
+        }
+
+        console.log(this.queue)
+
+        console.log(`Target track index: ${this.queue.indexOf(trackEntry)}`)
+        console.log(`Target track order: ${trackEntry.order}`)
+        console.log(`Given order       : ${order}`)
+
+        // reorder the given track
+        trackEntry.order = order
+        this.queue.splice(this.queue.indexOf(trackEntry), 1)
+        this.queue.splice(order, 0, trackEntry)
+
+        console.log(`Index after change: ${this.queue.indexOf(trackEntry)}`)
+
+        // reorder existing tracks
+        this.queue.forEach((entry, index) => {
+            entry.order = index
+            entry.track.domElement?.setAttribute('data-order', `${index}`)
+            entry.track.domElement!.style.order = `${index}`
+        })
+
+        console.log(this.queue)
+
+        console.log(`End index         : ${this.queue.indexOf(trackEntry)}`)
+        console.log(`End order         : ${this.queue[this.queue.indexOf(trackEntry)].order}`)
+        console.log(`End data order    : ${trackEntry.track.domElement!.getAttribute('data-order')}`)
+    }
+
     PlayNextTrack() {
         console.log('Playing next track in queue.')
 
@@ -177,15 +210,16 @@ export class QueueManager extends Manager {
         Managers.PlayerManager.SkipCurrentTrack()
 
         if (this.queue.length > 0)
-            if (this.queue[0].isPlaying) {
+            if (this.queue[0].track.isPlaying) {
                 const removed = this.queue.shift()
-                this.RemoveTrackElement(removed?.domElement!)
+                this.RemoveTrackElement(removed?.track.domElement!)
             }
 
         if (this.queue.length === 0) return
 
-        this.queue[0].isPlaying = true
-        this.queue[0].domElement!.setAttribute('data-playing', 'true')
-        Managers.PlayerManager.LoadTrack(this.queue[0], true)
+        const newEntry = this.queue[0]
+        newEntry.track.isPlaying = true
+        newEntry.track.domElement!.setAttribute('data-playing', 'true')
+        Managers.PlayerManager.LoadTrack(newEntry.track, true)
     }
 }
