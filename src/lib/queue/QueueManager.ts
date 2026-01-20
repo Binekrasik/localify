@@ -158,49 +158,57 @@ export class QueueManager extends Manager {
             .setAttribute('data-playing', 'true')
     }
 
-    RemoveTrackElement(element: HTMLElement) {
-        element.setAttribute('data-removed', 'true')
-        element.style.top = `${element.offsetTop}px`
-        element.style.left = `${element.offsetLeft}px`
-        element.style.position = 'absolute'
-
-        Managers.UpdateManager.CreateTimer({
-            callback: () => element.remove(),
-            delay: 300,
-        })
-    }
-
     SetTrackOrder(trackEntry: QueueTrackEntry, order: number) {
         if (order < 0) {
             console.warn('Cannot reorder a track with order less than 0')
             return
         }
 
-        console.log(this.queue)
-
-        console.log(`Target track index: ${this.queue.indexOf(trackEntry)}`)
-        console.log(`Target track order: ${trackEntry.order}`)
-        console.log(`Given order       : ${order}`)
-
         // reorder the given track
         trackEntry.order = order
         this.queue.splice(this.queue.indexOf(trackEntry), 1)
         this.queue.splice(order, 0, trackEntry)
 
-        console.log(`Index after change: ${this.queue.indexOf(trackEntry)}`)
-
         // reorder existing tracks
+        this.SyncQueueChanges()
+    }
+
+    SyncQueueChanges() {
         this.queue.forEach((entry, index) => {
             entry.order = index
             entry.track.domElement?.setAttribute('data-order', `${index}`)
             entry.track.domElement!.style.order = `${index}`
         })
+    }
 
-        console.log(this.queue)
+    RemoveTrackElement(element: HTMLElement) {
+        const parentBoundingRect = element.parentElement!.getBoundingClientRect()
 
-        console.log(`End index         : ${this.queue.indexOf(trackEntry)}`)
-        console.log(`End order         : ${this.queue[this.queue.indexOf(trackEntry)].order}`)
-        console.log(`End data order    : ${trackEntry.track.domElement!.getAttribute('data-order')}`)
+        element.style.top = `${element.parentElement!.offsetTop - parentBoundingRect.top + element.offsetTop}px`
+        element.style.left = `${element.offsetLeft}px`
+        element.style.position = 'absolute'
+        element.setAttribute('data-removed', 'true')
+
+        Managers.UpdateManager.CreateTimer({
+            callback: () => {
+                element.remove()
+                this.SyncQueueChanges()
+            },
+            delay: 300,
+        })
+    }
+
+    RemoveTrackFromQueue(trackEntry: QueueTrackEntry) {
+        this.queue.splice(this.queue.indexOf(trackEntry), 1)
+        this.RemoveTrackElement(trackEntry.track.domElement!)
+    }
+
+    GetFirstSafeQueueIndex() {
+        return this.queue[0]?.track.isPlaying ? 1 : 0
+    }
+
+    GetLastSafeQueueIndex() {
+        return this.queue.length
     }
 
     PlayNextTrack() {

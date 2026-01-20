@@ -48,7 +48,7 @@ export class ContextMenuManager extends Manager {
             if (wasOutside) {
                 console.log('hiding menu')
 
-                this.#menuElement.setAttribute('data-visible', 'false')
+                this.HideContextMenu()
                 event.preventDefault()
             }
         })
@@ -56,7 +56,7 @@ export class ContextMenuManager extends Manager {
             if (this.#menuElement.getAttribute('data-visible') == 'false')
                 return
 
-            this.#menuElement.setAttribute('data-visible', 'false')
+            this.HideContextMenu()
         })
     }
 
@@ -81,11 +81,20 @@ export class ContextMenuManager extends Manager {
             // apply content
             if (entry.icon) element.appendChild(entry.icon)
             element.appendChild(entry.text)
-            element.addEventListener('click', entry.onClick)
+            element.addEventListener('click', event => {
+                entry.onClick(event)
+
+                if (!entry.preventCloseAfterClick)
+                    this.HideContextMenu()
+            })
 
             // add entry to the context menu
             this.#menuElement.appendChild(element)
         })
+    }
+
+    HideContextMenu() {
+        this.#menuElement.setAttribute('data-visible', 'false')
     }
 
     /**
@@ -105,6 +114,4 @@ export class ContextMenuManager extends Manager {
 
         this.#menuElement.setAttribute('data-visible', 'true')
     }
-
-
 }
