@@ -7,7 +7,7 @@ export async function parseAudioFile(audioFile: File): Promise<Track> {
     const metadata = await parseWebStream(audioFile.stream(), {
         mimeType: audioFile.type,
         size: audioFile.size,
-        path: audioFile.name,
+        path: audioFile instanceof File ? audioFile.name : undefined,
     })
 
     const coverImage = metadata.common.picture
@@ -24,6 +24,8 @@ export async function parseAudioFile(audioFile: File): Promise<Track> {
         ? await getAccentColorFromBase64(coverImage)
         : "#7050fd"
 
+    const splitName = audioFile.name.split('.')
+
     return {
         title: metadata.common.title || audioFile.name || "Unknown Title",
         artist: metadata.common.artist || "Unknown Artist",
@@ -31,6 +33,7 @@ export async function parseAudioFile(audioFile: File): Promise<Track> {
         coverImage: coverImage,
         isPlaying: false,
         accentColor: accentColor,
+        format: splitName[splitName.length - 1]
     }
 }
 

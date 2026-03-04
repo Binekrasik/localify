@@ -7,4 +7,5 @@ export interface Track {
     domElement?: HTMLDivElement
     isPlaying: boolean
     accentColor: string
+    format: string
 }

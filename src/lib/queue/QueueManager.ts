@@ -24,28 +24,7 @@ export class QueueManager extends Manager {
             if (!files || files.length < 1) return
 
             const filesArray = [...files]
-            filesArray
-                .filter(file => file.type.startsWith('audio/'))
-                .forEach(audioFile => {
-                    const initialTrack = {} as Track
-                    this.AddInitialTrackElement(initialTrack)
-
-                    const match = audioFile.name
-                        .toLowerCase()
-                        .match(/(.*)\.[^.]+$/)
-                    if (!match) return false
-
-                    const lyricsFile = [...files].find(file => {
-                        console.log(`Comparing ${file.name.toLowerCase()} with ${match[1]}`)
-
-                        return (
-                            file.name.toLowerCase().includes(match[1]) &&
-                            file.name.toLowerCase().endsWith('.lrc')
-                        )
-                    })
-
-                    this.AddTrackFromFile(audioFile, lyricsFile, initialTrack)
-                })
+            this.ProcessAudioAndLyricsFiles(filesArray)
 
             // reset the input value to allow adding the same files again if needed
             this.#addToQueueInput.value = ''
@@ -71,8 +50,55 @@ export class QueueManager extends Manager {
         }).observe(this.#queueListElement, { childList: true })
     }
 
+    ProcessAudioAndLyricsFiles(files: File[]) {
+        console.log("Adding files:")
+
+        files
+            .filter(file => file.type.startsWith('audio/'))
+            .forEach(audioFile => {
+                console.log(`Adding: ${audioFile.name}`)
+
+                const initialTrack = {} as Track
+                this.AddInitialTrackElement(initialTrack)
+
+                const match = audioFile.name
+                    .toLowerCase()
+                    .match(/(.*)\.[^.]+$/)
+                if (!match) return false
+
+                const lyricsFile = files.find(file => {
+                    // console.log(`Comparing ${file.name.toLowerCase()} with ${match[1]}`)
+
+                    return (
+                        file.name.toLowerCase().includes(match[1]) &&
+                        file.name.toLowerCase().endsWith('.lrc')
+                    )
+                })
+
+                const splitName = audioFile.name.split('.')
+                initialTrack.format = splitName[splitName.length - 1]
+
+                this.AddTrackFromFile(audioFile, lyricsFile, initialTrack)
+            })
+    }
+
+    AddTrackFromBlob(blob: Blob) {
+        new Promise<void>(async (resolve, _reject) => {
+            console.log(`Adding blob track`)
+            let track = await parseAudioFile(blob)
+
+            this.AddToQueue({ ...track })
+            console.log(`Track added! ${track.audioFile.type}`)
+
+            resolve()
+        }).catch(() => {
+            console.warn(`Failed to add a blob track.`)
+        })
+    }
+
     AddTrackFromFile(audioFile: File, lyricsFile?: File, initialTrack?: Track) {
         new Promise<void>(async (resolve, _reject) => {
+            console.log(`Audio file name: ${audioFile.name}`)
             let track = await parseAudioFile(audioFile)
 
             if (initialTrack?.domElement)
@@ -106,7 +132,7 @@ export class QueueManager extends Manager {
             <img src="/assets/loader.svg" class="loader">
             <div class="trackInfo">
                 <p class="name" data-loading="true"><span>loading some weird track</span></p>
-                <p class="lyricsStatus" data-loading="true"><span>loading lyrics</span></p>
+                <p class="trackStatus" data-loading="true"><span class="lyrics">loading lyrics</span></p>
             </div>
         `
 
@@ -128,7 +154,7 @@ export class QueueManager extends Manager {
             <img src="${track.coverImage || ''}" alt="No image" >
             <div class="trackInfo">
                 <p class="name">${track.title}</p>
-                <p class="lyricsStatus" data-loaded="${Boolean(track.lyrics)}">${track.lyrics ? 'lyrics loaded' : 'no lyrics'}</p>
+                <p class="trackStatus" data-loaded="${Boolean(track.lyrics)}"><span class="format">${track.format}</span><span class="lyrics">${track.lyrics ? 'lyrics loaded' : 'no lyrics'}</span></p>
             </div>
         `
 
