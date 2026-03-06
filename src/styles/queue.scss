@@ -256,7 +256,7 @@ $queueMaxWidth: 380px;
                 margin-top: 5px;
 
                 .format {
-                font-size: 13px;
+                    font-size: 13px;
                     font-weight: 800;
 
                     background: rgba(colors.$foreground, .35);
@@ -265,17 +265,15 @@ $queueMaxWidth: 380px;
                     margin-right: 6px;
                 }
 
-                .lyrics {
-                    &[data-loaded="true"] {
+                &[data-loaded="true"] {
+                    .lyrics {
                         color: rgba(#9bffd5, 0.9);
                     }
+                }
 
-                    &[data-loaded="false"] {
+                &[data-loaded="false"] {
+                    .lyrics {
                         color: rgba(colors.$foreground, 0.25);
-                    }
-
-                    &[data-loading="true"] {
-                        margin-top: 5px;
                     }
                 }
             }

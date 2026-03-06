@@ -4,7 +4,7 @@ import { Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
 import { parseAudioFile } from '../track/parseAudioFile'
 import { readLrcFile } from '../lyrics/lrcutils'
-import { QueueTrackEntry } from './QueueTrackElement'
+import { QueueTrackEntry } from './QueueTrackEntry'
 
 export class QueueManager extends Manager {
     queue: QueueTrackEntry[] = []
@@ -82,19 +82,19 @@ export class QueueManager extends Manager {
             })
     }
 
-    AddTrackFromBlob(blob: Blob) {
-        new Promise<void>(async (resolve, _reject) => {
-            console.log(`Adding blob track`)
-            let track = await parseAudioFile(blob)
+    // AddTrackFromBlob(blob: Blob) {
+    //     new Promise<void>(async (resolve, _reject) => {
+    //         console.log(`Adding blob track`)
+    //         let track = await parseAudioFile(blob)
 
-            this.AddToQueue({ ...track })
-            console.log(`Track added! ${track.audioFile.type}`)
+    //         this.AddToQueue({ ...track })
+    //         console.log(`Track added! ${track.audioFile.type}`)
 
-            resolve()
-        }).catch(() => {
-            console.warn(`Failed to add a blob track.`)
-        })
-    }
+    //         resolve()
+    //     }).catch(() => {
+    //         console.warn(`Failed to add a blob track.`)
+    //     })
+    // }
 
     AddTrackFromFile(audioFile: File, lyricsFile?: File, initialTrack?: Track) {
         new Promise<void>(async (resolve, _reject) => {

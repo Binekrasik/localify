@@ -32,10 +32,10 @@ export class PlayerManager extends Manager {
         // Audio stuff
         this.audioElement.addEventListener('loadeddata', () => {
             this.SetControlsEnabled(true)
-        
-            const minutes = Math.round(this.audioElement.duration / 60)
-            const seconds = Math.round(this.audioElement.duration % 60).toString().padStart(2, '0')
-        
+
+            const minutes = Math.floor(this.audioElement.duration / 60)
+            const seconds = Math.floor(this.audioElement.duration % 60).toString().padStart(2, '0')
+
             // @ts-ignore
             sqs('#player-label-progress .endTime').innerText = `${minutes}:${seconds}`
 
@@ -141,7 +141,7 @@ export class PlayerManager extends Manager {
 
             sqs('#queueContainer').setAttribute('data-collapsable', 'true')
             sqs('#player').setAttribute('data-collapsable', 'true')
-            
+
             sqs('html').requestFullscreen()
         }
     }
@@ -163,7 +163,7 @@ export class PlayerManager extends Manager {
 
     /**
      * Enabled or disables player controls.
-     * @param enabled 
+     * @param enabled
      */
     SetControlsEnabled(enabled?: boolean) {
         console.log(`Player controls ${enabled ? 'enabled' : 'disabled'}.`)
@@ -193,7 +193,7 @@ export class PlayerManager extends Manager {
             this.audioElement.innerHTML = `<source src="${reader.result}" type="${file.type}">`
             this.audioElement.load()
 
-            console.log(`${file.name} loaded.`) 
+            console.log(`${file.name} loaded.`)
         }
 
         reader.readAsDataURL(file)
@@ -202,7 +202,7 @@ export class PlayerManager extends Manager {
     LoadTrack (track: Track, playOnLoad: boolean = false) {
         this.state.playOnNextTrackLoad = playOnLoad
         this.LoadAudioFile(track.audioFile)
-        
+
         Managers.LyricsManager.LoadFromTrack(track)
     }
 
@@ -216,11 +216,11 @@ export class PlayerManager extends Manager {
     UpdateProgressIndicators () {
         const progress = (this.audioElement.currentTime / this.audioElement.duration) * 100
         this.controls.progressSlider.value = `${progress}`
-    
+
         const time = (progress / 100) * this.audioElement.duration
-        const minutes = Math.round(time / 60) || '0'
-        const seconds = Math.round(time % 60) || '00'
-    
+        const minutes = Math.floor(time / 60) || '0'
+        const seconds = Math.floor(time % 60) || '00'
+
         // @ts-ignore
         sqs('#player-label-progress .currentTime').innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`
     }
