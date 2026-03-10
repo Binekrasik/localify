@@ -10,13 +10,12 @@ export async function parseAudioFile(audioFile: File): Promise<Track> {
         path: audioFile instanceof File ? audioFile.name : undefined,
     })
 
-    const coverImage = metadata.common.picture
-        ? await resizeBase64Image(
-              `data:${metadata.common.picture[0].format};base64,${uint8ArrayToBase64(metadata.common.picture[0].data)}`,
-              50,
-              50,
-          )
-        : undefined
+    const fullImage = metadata.common.picture ? `data:${metadata.common.picture[0].format};base64,${uint8ArrayToBase64(metadata.common.picture[0].data)}` : undefined
+
+    const coverImage =
+        fullImage ? await resizeBase64Image(
+            fullImage, 50, 50,
+        ) : undefined
 
     let accentColor: string | undefined
 
@@ -31,6 +30,7 @@ export async function parseAudioFile(audioFile: File): Promise<Track> {
         artist: metadata.common.artist || "Unknown Artist",
         audioFile: audioFile,
         coverImage: coverImage,
+        fullCoverImage: fullImage,
         isPlaying: false,
         accentColor: accentColor,
         format: splitName[splitName.length - 1]

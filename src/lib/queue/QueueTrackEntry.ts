@@ -60,6 +60,16 @@ export class QueueTrackEntry {
             },
         })
 
+        entries.push({
+            icon: createElement('img', { src: '/assets/icons/view_image.svg' }),
+            text: createElement('p', {}, 'Show cover art'),
+            onClick: _ => {
+                if (this.track.fullCoverImage)
+                    window.open(this.track.fullCoverImage, '_blank')?.focus()
+                else alert("The track doesn't have a cover image.")
+            },
+        })
+
         return entries
     }
 }
