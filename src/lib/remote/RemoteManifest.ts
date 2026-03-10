@@ -1,5 +1,4 @@
 import { Managers } from "../state/Managers"
-import type { Track } from "../track/Track"
 import type { RemoteInstance } from "./RemoteInstance"
 import type { RemoteTrack } from "./RemoteTrack"
 
