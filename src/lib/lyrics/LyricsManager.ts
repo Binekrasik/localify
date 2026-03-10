@@ -17,9 +17,9 @@ export class LyricsManager extends Manager {
     }
 
     #lyricsEditor = new LyricsEditor()
-    #lyricsElement = sqs('#lyrics') as HTMLDivElement
-    #lyricsContainerElement = sqs('#lyricsContainer') as HTMLDivElement
-    #lyricsPositionIndicator = sqs('#lyrics-positionIndicator') as HTMLParagraphElement
+    #lyricsElement = sqs<HTMLDivElement>('#lyrics')
+    #lyricsContainerElement = sqs<HTMLDivElement>('#lyricsContainer')
+    #lyricsPositionIndicator = sqs<HTMLParagraphElement>('#lyrics-positionIndicator')
 
     Initialize(): void {
         this.#InitHooks()
@@ -81,8 +81,8 @@ export class LyricsManager extends Manager {
             `.trim()
 
         const headerElements = {
-            author: sqs('#lyrics .header .author') as HTMLHeadingElement,
-            title: sqs('#lyrics .header .title') as HTMLHeadingElement,
+            author: sqs<HTMLHeadingElement>('#lyrics .header .author'),
+            title: sqs<HTMLHeadingElement>('#lyrics .header .title'),
         }
 
         this.state.text
@@ -162,7 +162,7 @@ export class LyricsManager extends Manager {
     SetAccentColor (color: string) {
         console.log(`Settings lyrics accent color to ${color}`)
 
-        const lyricsContainer = sqs('#lyricsContainer') as HTMLDivElement
+        const lyricsContainer = sqs<HTMLDivElement>('#lyricsContainer')
         lyricsContainer.style.setProperty('--color-accent', color)
     }
 

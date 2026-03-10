@@ -13,7 +13,7 @@ export class RemoteInstance {
         this.#secret = secret
 
         // temporary song loading mechanism
-        const button = sqs("#remote-instance-fetch") as HTMLButtonElement
+        const button = sqs<HTMLButtonElement>("#remote-instance-fetch")
         button.addEventListener("click", _ => {
             this.FetchManifest().then(data => {
                 if (!data) {

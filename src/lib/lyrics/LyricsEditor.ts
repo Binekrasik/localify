@@ -23,7 +23,7 @@ export class LyricsEditor {
             if (!Managers.LyricsManager.state.editingMode) return
 
             const time = Managers.PlayerManager.audioElement.currentTime // slight offset to account for human delay
-            
+
             const p = document.querySelector(`p[data-index="${this.state.indicatorIndex}"]`)
             if (!p || !(p instanceof HTMLParagraphElement)) return
 
@@ -60,7 +60,7 @@ export class LyricsEditor {
             if (!Managers.LyricsManager.state.editingMode) return
 
             this.state.indicatorIndex = Math.max(this.state.indicatorIndex + 1, 0)
-            
+
             try {
                 // sqs(`#lyrics p[data-index="${this.state.indicatorIndex}"] .timestamp`).innerText = '[00:00.00]'
                 Managers.LyricsManager.UnsyncLyrics()
@@ -84,12 +84,12 @@ export class LyricsEditor {
         if (!Managers.LyricsManager.state.editingMode) return
 
         try {
-            const p = sqs(`#lyrics p[data-index="${this.state.indicatorIndex}"]`) as HTMLParagraphElement
+            const p = sqs<HTMLParagraphElement>(`#lyrics p[data-index="${this.state.indicatorIndex}"]`)
 
             const x = p.offsetTop
             const y = p.offsetLeft - 15
 
-            const indicator = sqs('#lyrics-editor-line-indicator') as HTMLParagraphElement
+            const indicator = sqs<HTMLParagraphElement>('#lyrics-editor-line-indicator')
             indicator.style = `top: ${x}px; left: ${y}px; height: ${p.offsetHeight}px;`
         } catch (e) {
             console.warn('No line indicator .')

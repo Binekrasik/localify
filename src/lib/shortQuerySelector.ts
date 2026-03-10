@@ -1,10 +1,10 @@
-export default function sqs(query: string): Element {
+export default function sqs<T extends HTMLElement>(query: string): T {
     const element = document.querySelector(query)
 
-    if (!(element instanceof Element))
+    if (!(element instanceof HTMLElement))
         throw new Error(`Failed to process a short element query: ${query}`)
 
-    return element
+    return element as T
 }
 
 export function sqsa(query: string): Element[] {

@@ -4,23 +4,21 @@ import type { Track } from '../track/Track';
 import { Managers } from '../state/Managers';
 
 export class PlayerManager extends Manager {
-    state = {
-        isPlaying: false,
-        playOnNextTrackLoad: true,
-    }
+    isPlaying = false
+    playOnNextTrackLoad = true
 
     controls = {
-        playButton: sqs('#player-button-play') as HTMLButtonElement,
-        progressSlider: sqs('#player-slider-progress') as HTMLInputElement,
-        volumeSlider: sqs('#player-slider-volume') as HTMLInputElement,
-        syncButton: sqs('#player-button-sync') as HTMLButtonElement,
-        backwardButton: sqs('#player-button-backward') as HTMLButtonElement,
-        forwardButton: sqs('#player-button-forward') as HTMLButtonElement,
-        playNextButton: sqs('#player-button-play-next') as HTMLButtonElement,
-        toggleZenMode: sqs('#player-button-zen') as HTMLButtonElement,
+        playButton: sqs<HTMLButtonElement>('#player-button-play'),
+        progressSlider: sqs<HTMLButtonElement>('#player-slider-progress'),
+        volumeSlider: sqs<HTMLInputElement>('#player-slider-volume'),
+        syncButton: sqs<HTMLButtonElement>('#player-button-sync'),
+        backwardButton: sqs<HTMLButtonElement>('#player-button-backward'),
+        forwardButton: sqs<HTMLButtonElement>('#player-button-forward'),
+        playNextButton: sqs<HTMLButtonElement>('#player-button-play-next'),
+        toggleZenMode: sqs<HTMLButtonElement>('#player-button-zen'),
     }
 
-    audioElement = sqs('#audioPlayer') as HTMLAudioElement
+    audioElement = sqs<HTMLAudioElement>('#audioPlayer')
 
     Initialize() {
         this.#initHooks()
@@ -39,9 +37,9 @@ export class PlayerManager extends Manager {
             // @ts-ignore
             sqs('#player-label-progress .endTime').innerText = `${minutes}:${seconds}`
 
-            if (this.state.playOnNextTrackLoad) {
+            if (this.playOnNextTrackLoad) {
                 this.audioElement.play()
-                this.state.playOnNextTrackLoad = false
+                this.playOnNextTrackLoad = false
             }
 
             this.UpdatePlayButtonState()
@@ -60,7 +58,7 @@ export class PlayerManager extends Manager {
         }) */
 
         this.audioElement.addEventListener('play', () => {
-            this.state.isPlaying = true
+            this.isPlaying = true
             this.UpdatePlayButtonState()
 
             Managers.UpdateManager.CreateTimer({
@@ -70,7 +68,7 @@ export class PlayerManager extends Manager {
         })
 
         this.audioElement.addEventListener('pause', () => {
-            this.state.isPlaying = false
+            this.isPlaying = false
             this.UpdatePlayButtonState()
         })
 
@@ -200,7 +198,7 @@ export class PlayerManager extends Manager {
     }
 
     LoadTrack (track: Track, playOnLoad: boolean = false) {
-        this.state.playOnNextTrackLoad = playOnLoad
+        this.playOnNextTrackLoad = playOnLoad
         this.LoadAudioFile(track.audioFile)
 
         Managers.LyricsManager.LoadFromTrack(track)
