@@ -12,10 +12,8 @@ export class PlayerManager extends Manager {
         progressSlider: sqs<HTMLButtonElement>('#player-slider-progress'),
         volumeSlider: sqs<HTMLInputElement>('#player-slider-volume'),
         syncButton: sqs<HTMLButtonElement>('#player-button-sync'),
-        backwardButton: sqs<HTMLButtonElement>('#player-button-backward'),
-        forwardButton: sqs<HTMLButtonElement>('#player-button-forward'),
         playNextButton: sqs<HTMLButtonElement>('#player-button-play-next'),
-        toggleZenMode: sqs<HTMLButtonElement>('#player-button-zen'),
+        shuffleQueue: sqs<HTMLButtonElement>('#player-button-shuffle'),
     }
 
     audioElement = sqs<HTMLAudioElement>('#audioPlayer')
@@ -73,6 +71,8 @@ export class PlayerManager extends Manager {
         })
 
         this.audioElement.addEventListener('ended', () => {
+            console.log(this.audioElement.currentTime)
+            Managers.LyricsManager.UpdateLyricsPositionIndicator(true)
             Managers.QueueManager.PlayNextTrack()
         })
 
@@ -87,26 +87,18 @@ export class PlayerManager extends Manager {
         this.controls.syncButton.addEventListener('click', () => Managers.LyricsManager.SyncLyrics())
         this.controls.playButton.addEventListener('click', () => {
             if (this.audioElement.paused) {
-                this.audioElement.play()
+                if (this.audioElement.readyState === 0)
+                    Managers.QueueManager.PlayNextTrack()
+                else this.audioElement.play()
             } else this.audioElement.pause()
-        })
-
-        this.controls.backwardButton.addEventListener('click', () => Managers.LyricsManager.SyncLyrics())
-        this.controls.backwardButton.addEventListener('click', () => {
-            this.audioElement.currentTime = Math.max(this.audioElement.currentTime - 1, 0)
-        })
-
-        this.controls.forwardButton.addEventListener('click', () => Managers.LyricsManager.SyncLyrics())
-        this.controls.forwardButton.addEventListener('click', () => {
-            this.audioElement.currentTime = Math.min(this.audioElement.currentTime + 1, this.audioElement.duration)
         })
 
         this.controls.playNextButton.addEventListener('click', () => {
             Managers.QueueManager.PlayNextTrack()
         })
 
-        // zen mode
-        this.controls.toggleZenMode.addEventListener('click', () => this.ToggleZenMode())
+        // shuffle
+        this.controls.shuffleQueue.addEventListener('click', () => this.ShuffleQueue())
 
         // spacebar play/pause
         document.addEventListener('keydown', (e) => {
@@ -124,24 +116,16 @@ export class PlayerManager extends Manager {
         Managers.UpdateManager.AddUpdateListener(() => this.UpdateProgressIndicators())
     }
 
-    ToggleZenMode(enable?: boolean) {
-        const app = sqs('#app')
+    ShuffleQueue() {
+        const safeIndex = Managers.QueueManager.GetFirstSafeQueueIndex()
+        const queue = Managers.QueueManager.queue
 
-        if (app.getAttribute('data-zen') === 'true' && typeof enable === 'undefined' || !enable && typeof enable !== 'undefined') {
-            app.setAttribute('data-zen', 'false')
-
-            sqs('#queueContainer').removeAttribute('data-collapsable')
-            sqs('#player').removeAttribute('data-collapsable')
-
-            document.exitFullscreen()
-        } else {
-            app.setAttribute('data-zen', 'true')
-
-            sqs('#queueContainer').setAttribute('data-collapsable', 'true')
-            sqs('#player').setAttribute('data-collapsable', 'true')
-
-            sqs('html').requestFullscreen()
+        for (let i = queue.length - 1; i > safeIndex; i--) {
+            const j = Math.floor(Math.random() * (i - safeIndex + 1)) + safeIndex;
+            [queue[i], queue[j]] = [queue[j], queue[i]]
         }
+
+        Managers.QueueManager.SyncQueueChanges()
     }
 
     /**
@@ -166,7 +150,7 @@ export class PlayerManager extends Manager {
     SetControlsEnabled(enabled?: boolean) {
         console.log(`Player controls ${enabled ? 'enabled' : 'disabled'}.`)
 
-        this.controls.playButton.disabled = !enabled
+        // this.controls.playButton.disabled = !enabled
         this.controls.progressSlider.disabled = !enabled
         this.controls.volumeSlider.disabled = !enabled
         this.controls.syncButton.disabled = enabled ? Managers.LyricsManager.state.synced : false

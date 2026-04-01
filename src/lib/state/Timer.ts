@@ -1,7 +1,7 @@
 export interface Timer {
     /**
      * A function to be executed after the timeout has been reached.
-     * @returns returning `true` will stop the timer. Anything other value will be ignored
+     * @returns returning `true` will stop the timer. Any other value will be ignored
      */
     callback: () => void | boolean
 

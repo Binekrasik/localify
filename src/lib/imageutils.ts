@@ -36,15 +36,22 @@ export async function resizeBase64Image(
  * @returns css-compatible color string
  */
 export async function getAccentColorFromBase64(image: string): Promise<string> {
-    const thief = new ColorThief()
+
     const imageElement = new Image()
 
     return new Promise((resolve) => {
-        imageElement.onload = () => {
-            const colors = thief.getColor(imageElement, 1)
+        resolve('rgb(0, 0, 0)')
+        return;
+
+        imageElement.onload = async () => {
+            const colors = await ColorThief.getColor(imageElement, 1)
             imageElement.remove()
 
-            resolve(`rgb(${colors[0]}, ${colors[1]}, ${colors[2]})`)
+            if (colors) {
+                resolve(`rgb(${colors[0]}, ${colors[1]}, ${colors[2]})`)
+            } else {
+                resolve('rgb(0, 0, 0)')
+            }
         }
 
         imageElement.src = image
