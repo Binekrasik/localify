@@ -1,10 +1,12 @@
 import sqs from '../shortQuerySelector'
 import { Manager } from '../Manager'
-import { Managers } from '../state/Managers'
+import { bus, updateManager, Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
 import { parseAudioFile } from '../track/parseAudioFile'
 import { readLrcFile } from '../lyrics/lrcutils'
 import { QueueTrackEntry } from './QueueTrackEntry'
+import { createElement } from '../domUtils'
+import type { ContextMenuEntry } from '../interaction/ContextMenuEntry'
 
 export class QueueManager extends Manager {
     queue: QueueTrackEntry[] = []
@@ -12,9 +14,14 @@ export class QueueManager extends Manager {
     #addToQueueInput = sqs('#player-add-to-queue') as HTMLInputElement
 
     Initialize() {
-        // this.#queueListElement.innerHTML = ''
         this.#initHooks()
-        // this.AddInitialTrackElement({} as Track)
+        this.#initBusListeners()
+    }
+
+    #initBusListeners() {
+        bus.on('playback:ended', () => this.PlayNextTrack())
+        bus.on('queue:next', () => this.PlayNextTrack())
+        bus.on('queue:shuffle', () => this.ShuffleQueue())
     }
 
     #initHooks() {
@@ -26,7 +33,6 @@ export class QueueManager extends Manager {
             const filesArray = [...files]
             this.ProcessAudioAndLyricsFiles(filesArray)
 
-            // reset the input value to allow adding the same files again if needed
             this.#addToQueueInput.value = ''
         })
 
@@ -67,8 +73,6 @@ export class QueueManager extends Manager {
                 if (!match) return false
 
                 const lyricsFile = files.find(file => {
-                    // console.log(`Comparing ${file.name.toLowerCase()} with ${match[1]}`)
-
                     return (
                         file.name.toLowerCase().includes(match[1]) &&
                         file.name.toLowerCase().endsWith('.lrc')
@@ -81,20 +85,6 @@ export class QueueManager extends Manager {
                 this.AddTrackFromFile(audioFile, lyricsFile, initialTrack)
             })
     }
-
-    // AddTrackFromBlob(blob: Blob) {
-    //     new Promise<void>(async (resolve, _reject) => {
-    //         console.log(`Adding blob track`)
-    //         let track = await parseAudioFile(blob)
-
-    //         this.AddToQueue({ ...track })
-    //         console.log(`Track added! ${track.audioFile.type}`)
-
-    //         resolve()
-    //     }).catch(() => {
-    //         console.warn(`Failed to add a blob track.`)
-    //     })
-    // }
 
     AddTrackFromFile(audioFile: File, lyricsFile?: File, initialTrack?: Track) {
         new Promise<void>(async (resolve, _reject) => {
@@ -112,7 +102,6 @@ export class QueueManager extends Manager {
                     console.warn(
                         `Failed to load lyrics for track ${track.title}`,
                     )
-                    // continue without lyrics
                 }
             }
 
@@ -161,8 +150,8 @@ export class QueueManager extends Manager {
         domTrackElement.addEventListener('mousedown', event => {
             if (event.button != 2) return
 
-            Managers.ContextMenuManager.PopulateContextMenu(trackEntry.GetContextMenuEntries())
-            Managers.ContextMenuManager.ShowContextMenu(event.clientX, event.clientY )
+            Managers.ContextMenuManager.PopulateContextMenu(this.#getContextMenuEntries(trackEntry))
+            Managers.ContextMenuManager.ShowContextMenu(event.clientX, event.clientY)
         })
 
         trackEntry.track.domElement = domTrackElement
@@ -174,11 +163,65 @@ export class QueueManager extends Manager {
         this.queue.push(trackEntry)
     }
 
+    #getContextMenuEntries(trackEntry: QueueTrackEntry): ContextMenuEntry[] {
+        return [
+            {
+                icon: createElement('img', { src: '/assets/icons/keyboard_double_arrow_up.svg' }),
+                text: createElement('p', {}, 'Move to top'),
+                onClick: _ => {
+                    this.SetTrackOrder(trackEntry, this.GetFirstSafeQueueIndex())
+                },
+            },
+            {
+                icon: createElement('img', { src: '/assets/icons/arrow_upward.svg' }),
+                text: createElement('p', {}, 'Move up'),
+                onClick: _ => {
+                    const firstSafeIndex = this.GetFirstSafeQueueIndex()
+                    this.SetTrackOrder(
+                        trackEntry,
+                        firstSafeIndex > trackEntry.order - 1
+                            ? firstSafeIndex
+                            : trackEntry.order - 1,
+                    )
+                },
+            },
+            {
+                icon: createElement('img', { src: '/assets/icons/arrow_downward.svg' }),
+                text: createElement('p', {}, 'Move down'),
+                onClick: _ => {
+                    const lastSafeIndex = this.GetLastSafeQueueIndex()
+                    this.SetTrackOrder(
+                        trackEntry,
+                        lastSafeIndex < trackEntry.order + 1
+                            ? lastSafeIndex
+                            : trackEntry.order + 1,
+                    )
+                },
+            },
+            {
+                icon: createElement('img', { src: '/assets/icons/delete.svg' }),
+                text: createElement('p', {}, 'Remove from queue'),
+                onClick: _ => {
+                    this.RemoveTrackFromQueue(trackEntry)
+                },
+            },
+            {
+                icon: createElement('img', { src: '/assets/icons/view_image.svg' }),
+                text: createElement('p', {}, 'Show cover art'),
+                onClick: _ => {
+                    if (trackEntry.track.fullCoverImage)
+                        window.open(trackEntry.track.fullCoverImage, '_blank')?.focus()
+                    else alert("The track doesn't have a cover image.")
+                },
+            },
+        ]
+    }
+
     PlayCurrentTrack() {
         const trackEntry = this.queue[0]
         if (!trackEntry) return
 
-        Managers.PlayerManager.LoadTrack(trackEntry.track, true)
+        bus.emit('queue:play-request', { track: trackEntry.track, play: true })
         this.#queueListElement
             .querySelectorAll('.queueItem')[0]
             .setAttribute('data-playing', 'true')
@@ -190,12 +233,10 @@ export class QueueManager extends Manager {
             return
         }
 
-        // reorder the given track
         trackEntry.order = order
         this.queue.splice(this.queue.indexOf(trackEntry), 1)
         this.queue.splice(order, 0, trackEntry)
 
-        // reorder existing tracks
         this.SyncQueueChanges()
     }
 
@@ -215,7 +256,7 @@ export class QueueManager extends Manager {
         element.style.position = 'absolute'
         element.setAttribute('data-removed', 'true')
 
-        Managers.UpdateManager.CreateTimer({
+        updateManager.CreateTimer({
             callback: () => {
                 element.remove()
                 this.SyncQueueChanges()
@@ -240,9 +281,6 @@ export class QueueManager extends Manager {
     PlayNextTrack() {
         console.log('Playing next track in queue.')
 
-        Managers.LyricsManager.ResetLyrics()
-        Managers.PlayerManager.SkipCurrentTrack()
-
         if (this.queue.length > 0)
             if (this.queue[0].track.isPlaying) {
                 const removed = this.queue.shift()
@@ -254,6 +292,17 @@ export class QueueManager extends Manager {
         const newEntry = this.queue[0]
         newEntry.track.isPlaying = true
         newEntry.track.domElement!.setAttribute('data-playing', 'true')
-        Managers.PlayerManager.LoadTrack(newEntry.track, true)
+        bus.emit('queue:play-request', { track: newEntry.track, play: true })
+    }
+
+    ShuffleQueue() {
+        const safeIndex = this.GetFirstSafeQueueIndex()
+
+        for (let i = this.queue.length - 1; i > safeIndex; i--) {
+            const j = Math.floor(Math.random() * (i - safeIndex + 1)) + safeIndex;
+            [this.queue[i], this.queue[j]] = [this.queue[j], this.queue[i]]
+        }
+
+        this.SyncQueueChanges()
     }
 }

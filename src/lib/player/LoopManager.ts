@@ -1,10 +1,12 @@
 import { Manager } from '../Manager'
 import sqs from '../shortQuerySelector'
-import { Managers } from '../state/Managers'
+import { bus, updateManager } from '../state/Managers'
 
 export class LoopManager extends Manager {
     public startSeconds: number | null = null
     public endSeconds: number | null = null
+    #loopTimerId: number | null = null
+    #audioElement = sqs<HTMLAudioElement>('#audioPlayer')
 
     Initialize(): void {
         this.#initHooks()
@@ -12,35 +14,46 @@ export class LoopManager extends Manager {
 
     #initHooks(): void {
         sqs<HTMLButtonElement>('#player-button-mark-loop-start').addEventListener('click', () => {
-            this.SetStart(Managers.PlayerManager.audioElement.currentTime)
+            this.SetStart(this.#audioElement.currentTime)
         })
 
         sqs<HTMLButtonElement>('#player-button-mark-loop-end').addEventListener('click', () => {
-            this.SetEnd(Managers.PlayerManager.audioElement.currentTime)
+            this.SetEnd(this.#audioElement.currentTime)
         })
 
         sqs<HTMLButtonElement>('#player-button-clear-loop').addEventListener('click', () => {
             this.ClearLoop()
         })
 
-        Managers.PlayerManager.audioElement.addEventListener('loadstart', () => {
+        this.#audioElement.addEventListener('loadstart', () => {
             this.ClearLoop()
         })
 
-        Managers.PlayerManager.audioElement.addEventListener('play', () => {
-            Managers.UpdateManager.CreateTimer({
+        bus.on('playback:play', () => {
+            this.#cancelLoopTimer()
+            this.#loopTimerId = updateManager.CreateTimer({
                 callback: (): void | boolean => {
-                    if (Managers.PlayerManager.audioElement.paused)
+                    if (this.#audioElement.paused)
                         return true
 
                     if (this.startSeconds === null || this.endSeconds === null)
                         return
 
-                    if (Managers.PlayerManager.audioElement.currentTime > this.endSeconds)
-                        Managers.PlayerManager.audioElement.currentTime = this.startSeconds
-                }, delay: 50
+                    if (this.#audioElement.currentTime >= this.endSeconds) {
+                        this.#audioElement.currentTime = this.startSeconds
+                        bus.emit('playback:seek', {})
+                    }
+                },
+                delay: 50,
             })
         })
+    }
+
+    #cancelLoopTimer(): void {
+        if (this.#loopTimerId !== null) {
+            updateManager.RemoveTimer(this.#loopTimerId)
+            this.#loopTimerId = null
+        }
     }
 
     ClearLoop(): void {
@@ -48,23 +61,13 @@ export class LoopManager extends Manager {
         this.endSeconds = null
     }
 
-    /**
-     * Sets the end of the loop
-     * @param time Start of the loop in seconds
-     * @return Start timestamp in seconds
-     */
     SetStart(time: number): number {
         this.startSeconds = Math.max(time, 0)
         return this.startSeconds
     }
 
-    /**
-     * Sets the end of the loop
-     * @param time End of the loop in seconds
-     * @return End timestamp in seconds
-     */
     SetEnd(time: number): number {
-        this.endSeconds = Math.min(time, Managers.PlayerManager.audioElement.duration)
+        this.endSeconds = Math.min(time, this.#audioElement.duration)
         return this.endSeconds
     }
 }

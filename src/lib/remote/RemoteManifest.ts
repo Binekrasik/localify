@@ -10,19 +10,10 @@ export interface RemoteManifest {
 export const ParseLoadManifestData = async (manifest: RemoteManifest, remoteInstance: RemoteInstance, allowedFormats: string[] | null = null): Promise<void> => {
     const files: File[] = []
 
-    manifest.tracks.forEach(async track => {
-        let skip = allowedFormats ? true : false
-        if (allowedFormats)
-            allowedFormats.forEach(format => {
-                if (track.id.toLowerCase().endsWith(format)) {
-                    skip = false
-                    return
-                }
-            })
-
-        if (skip) {
+    for (const track of manifest.tracks) {
+        if (allowedFormats && !allowedFormats.some(format => track.id.toLowerCase().endsWith(format))) {
             console.log(`Skipping track ${track.id}`)
-            return
+            continue
         }
 
         console.log(`Fetching track ${track.id}`)
@@ -30,11 +21,12 @@ export const ParseLoadManifestData = async (manifest: RemoteManifest, remoteInst
 
         if (!trackBlob) {
             console.warn(`Failed to fetch track with id ${track.id}`)
-            return
+            continue
         }
 
-        if (files.push(new File([trackBlob], `${track.id}`, { type: trackBlob.type })) == manifest.tracks.length) {
-            Managers.QueueManager.ProcessAudioAndLyricsFiles(files)
-        }
-    })
+        files.push(new File([trackBlob], `${track.id}`, { type: trackBlob.type }))
+    }
+
+    if (files.length > 0)
+        Managers.QueueManager.ProcessAudioAndLyricsFiles(files)
 }

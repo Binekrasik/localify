@@ -1,7 +1,5 @@
-export type ElementAttribute = ''
-
 export type ElementAttributes = {
-    [key: ElementAttribute | string]: string
+    [key: string]: string
 }
 
 export function createElement<T extends keyof HTMLElementTagNameMap>(tag: T, attributes?: ElementAttributes, text?: string, ...children: Element[]): HTMLElementTagNameMap[T] {

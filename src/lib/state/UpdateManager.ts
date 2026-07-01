@@ -4,50 +4,52 @@ import type { Timer } from './Timer'
 export class UpdateManager extends Manager {
     static DoUpdates = true
     listeners: Array<() => void> = []
-    timers: Timer[] = []
+    #timers: (Timer & { id: number })[] = []
+    #nextTimerId = 0
 
     #lastUpdateTimestamp = 0
-    readonly updateInterval = 0 // tick interval in milliseconds. -1 disables the limit
+    readonly updateInterval = 0
 
-    /**
-     * Creates a timer running within the internal ticker.
-     */
-    CreateTimer (timer: Timer): void {
-        timer.timeRemaining = timer.delay
-        this.timers.push(timer)
+    CreateTimer(timer: Timer): number {
+        const id = this.#nextTimerId++
+        this.#timers.push({ ...timer, id, timeRemaining: timer.delay })
+        return id
     }
 
-    /**
-     * Iterates and ticks all registered timers.
-     * @param delta time since the last tick in milliseconds
-     */
-    #TickTimers (delta: number) {
-        this.timers.forEach((timer, index) => {
-            // remove the timer if it's not correctly configured
+    RemoveTimer(id: number): void {
+        this.#timers = this.#timers.filter(t => t.id !== id)
+    }
+
+    #TickTimers(delta: number) {
+        const deadIds = new Set<number>()
+
+        for (const timer of this.#timers) {
             if (!timer.timeRemaining) {
                 console.warn('Cannot tick an invalid timer.')
-                this.timers.splice(index, 1)
-                
-                return
+                deadIds.add(timer.id)
+                continue
             }
 
-            // tick the timer
             timer.timeRemaining -= delta
-            
+
             if (timer.timeRemaining <= 0) {
                 const callback = timer.callback()
-                
-                if (timer.iterations && timer.iterations > 1 && callback !== true){
+
+                if (timer.iterations && timer.iterations > 1 && callback !== true) {
                     timer.iterations--
-                } else if (timer.iterations || callback === true)
-                    this.timers.splice(index, 1)
-            
+                } else if (timer.iterations || callback === true) {
+                    deadIds.add(timer.id)
+                }
+
                 timer.timeRemaining = timer.delay
             }
-        })
+        }
+
+        if (deadIds.size > 0)
+            this.#timers = this.#timers.filter(t => !deadIds.has(t.id))
     }
-    
-    Initialize () {
+
+    Initialize() {
         this.#lastUpdateTimestamp = performance.now()
         this.Update()
     }

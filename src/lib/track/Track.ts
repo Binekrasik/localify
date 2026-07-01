@@ -1,5 +1,5 @@
 export interface Track {
-    audioFile: File
+    audioFile: File | Blob
     title: string
     artist: string
     coverImage?: string

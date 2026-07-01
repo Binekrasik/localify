@@ -5,9 +5,13 @@ import { PlayerManager } from '../player/PlayerManager'
 import { QueueManager } from '../queue/QueueManager'
 import { RemoteManager } from '../remote/RemoteManager'
 import { UpdateManager } from './UpdateManager'
+import { EventBus } from './EventBus'
+
+export const bus = new EventBus()
+export const updateManager = new UpdateManager()
 
 export const Managers = {
-    UpdateManager: new UpdateManager(),
+    UpdateManager: updateManager,
     PlayerManager: new PlayerManager(),
     LyricsManager: new LyricsManager(),
     LoopManager: new LoopManager(),

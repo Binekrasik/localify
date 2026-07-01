@@ -1,6 +1,7 @@
+import { Manager } from "../Manager"
 import { RemoteInstance } from "./RemoteInstance"
 
-export class RemoteManager {
+export class RemoteManager extends Manager {
     readonly #remotes: RemoteInstance[] = []
 
     Initialize() {

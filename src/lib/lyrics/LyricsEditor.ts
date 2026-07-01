@@ -1,28 +1,25 @@
 import { getTimestampTag } from './lrcutils'
 import sqs from '../shortQuerySelector'
-import { Managers } from '../state/Managers'
+import { bus } from '../state/Managers'
 
 export class LyricsEditor {
     state = {
-        isEditing: false,
         indicatorIndex: 0,
     }
+    #audioElement: HTMLAudioElement
 
-    Disable() {
-
+    constructor() {
+        this.#audioElement = sqs<HTMLAudioElement>('#audioPlayer')
     }
 
     Enable() {
         sqs('#player-button-reset-lyrics').addEventListener('click', () => {
-            Managers.LyricsManager.ResetLyrics()
-            Managers.LyricsManager.ParseLoadLyricsText()
-            Managers.LyricsManager.UnsyncLyrics()
+            bus.emit('lyrics:reset', {})
+            bus.emit('lyrics:unsynced', {})
         })
 
         sqs('#player-button-mark-timestamp').addEventListener('click', () => {
-            if (!Managers.LyricsManager.state.editingMode) return
-
-            const time = Managers.PlayerManager.audioElement.currentTime // slight offset to account for human delay
+            const time = this.#audioElement.currentTime
 
             const p = document.querySelector(`p[data-index="${this.state.indicatorIndex}"]`)
             if (!p || !(p instanceof HTMLParagraphElement)) return
@@ -33,21 +30,17 @@ export class LyricsEditor {
             lineTimestamp.setAttribute('data-modified', 'true')
 
             this.state.indicatorIndex++
-
-            Managers.LyricsManager.UnsyncLyrics()
+            bus.emit('lyrics:unsynced', {})
             sqs(`#lyrics p[data-index="${this.state.indicatorIndex}"]`).scrollIntoView({ behavior: 'smooth', block: 'center' })
 
             this.UpdateLineIndicator()
         })
 
         sqs('#player-button-prev-timestamp').addEventListener('click', () => {
-            if (!Managers.LyricsManager.state.editingMode) return
-
             this.state.indicatorIndex = Math.max(this.state.indicatorIndex - 1, 0)
 
             try {
-                // sqs(`#lyrics p[data-index="${this.state.indicatorIndex}"] .timestamp`).innerText = '[00:00.00]'
-                Managers.LyricsManager.UnsyncLyrics()
+                bus.emit('lyrics:unsynced', {})
                 sqs(`#lyrics p[data-index="${this.state.indicatorIndex}"]`).scrollIntoView({ behavior: 'smooth', block: 'center' })
             } catch (e) {
                 console.warn('No previous line available.')
@@ -57,13 +50,10 @@ export class LyricsEditor {
         })
 
         sqs('#player-button-next-timestamp').addEventListener('click', () => {
-            if (!Managers.LyricsManager.state.editingMode) return
-
-            this.state.indicatorIndex = Math.max(this.state.indicatorIndex + 1, 0)
+            this.state.indicatorIndex = this.state.indicatorIndex + 1
 
             try {
-                // sqs(`#lyrics p[data-index="${this.state.indicatorIndex}"] .timestamp`).innerText = '[00:00.00]'
-                Managers.LyricsManager.UnsyncLyrics()
+                bus.emit('lyrics:unsynced', {})
                 sqs(`#lyrics p[data-index="${this.state.indicatorIndex}"]`).scrollIntoView({ behavior: 'smooth', block: 'center' })
             } catch (e) {
                 console.warn('No next line available.')
@@ -73,16 +63,12 @@ export class LyricsEditor {
         })
     }
 
-    SetLyricsLineIndex (index: number) {
-        if (!Managers.LyricsManager.state.editingMode) return
-
+    SetLyricsLineIndex(index: number) {
         this.state.indicatorIndex = index
         this.UpdateLineIndicator()
     }
 
-    UpdateLineIndicator () {
-        if (!Managers.LyricsManager.state.editingMode) return
-
+    UpdateLineIndicator() {
         try {
             const p = sqs<HTMLParagraphElement>(`#lyrics p[data-index="${this.state.indicatorIndex}"]`)
 

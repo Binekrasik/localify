@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
   "devDependencies": {
@@ -13,8 +14,6 @@
     "vite": "^7.3.1"
   },
   "dependencies": {
-    "@types/colorthief": "^2.6.1",
-    "colorthief": "^2.7.0",
     "music-metadata": "^11.12.3",
     "sass": "^1.98.0",
     "uint8array-extras": "^1.5.0"

@@ -1,5 +1,3 @@
-// import './styles/app.scss'
-
 import { Managers } from './lib/state/Managers'
 
 Managers.LyricsManager.Initialize()

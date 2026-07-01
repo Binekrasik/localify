@@ -1,11 +1,13 @@
 import sqs from '../shortQuerySelector';
 import { Manager } from '../Manager';
 import type { Track } from '../track/Track';
-import { Managers } from '../state/Managers';
+import { bus, updateManager } from '../state/Managers';
 
 export class PlayerManager extends Manager {
     isPlaying = false
     playOnNextTrackLoad = true
+    #lyricsSynced = true
+    #progressTimeLabel = sqs('#player-label-progress .currentTime')
 
     controls = {
         playButton: sqs<HTMLButtonElement>('#player-button-play'),
@@ -20,19 +22,33 @@ export class PlayerManager extends Manager {
 
     Initialize() {
         this.#initHooks()
+        this.#initBusListeners()
         this.SetControlsEnabled(false)
     }
 
+    #initBusListeners() {
+        bus.on('queue:play-request', ({ track, play }) => {
+            this.LoadTrack(track, play)
+        })
+
+        bus.on('lyrics:synced', () => {
+            this.#lyricsSynced = true
+            this.controls.syncButton.disabled = true
+        })
+
+        bus.on('lyrics:unsynced', () => {
+            this.#lyricsSynced = false
+            this.controls.syncButton.disabled = false
+        })
+    }
+
     #initHooks() {
-        //
-        // Audio stuff
         this.audioElement.addEventListener('loadeddata', () => {
             this.SetControlsEnabled(true)
 
             const minutes = Math.floor(this.audioElement.duration / 60)
             const seconds = Math.floor(this.audioElement.duration % 60).toString().padStart(2, '0')
 
-            // @ts-ignore
             sqs('#player-label-progress .endTime').innerText = `${minutes}:${seconds}`
 
             if (this.playOnNextTrackLoad) {
@@ -47,60 +63,54 @@ export class PlayerManager extends Manager {
             this.SetControlsEnabled(false)
         })
 
-        /* sqs('#player-file-audio').addEventListener('change', event => {
-            const target = event.target as HTMLInputElement
-            const file = target.files?.[0]
-            if (!file) return
-
-            this.LoadAudioFile(file)
-        }) */
-
         this.audioElement.addEventListener('play', () => {
             this.isPlaying = true
             this.UpdatePlayButtonState()
-
-            Managers.UpdateManager.CreateTimer({
-                callback: () => Managers.LyricsManager.UpdateLyricsPositionIndicator(),
-                delay: 50,
-            })
+            bus.emit('playback:play', {})
         })
 
         this.audioElement.addEventListener('pause', () => {
             this.isPlaying = false
             this.UpdatePlayButtonState()
+            bus.emit('playback:pause', {})
         })
 
         this.audioElement.addEventListener('ended', () => {
-            console.log(this.audioElement.currentTime)
-            Managers.LyricsManager.UpdateLyricsPositionIndicator(true)
-            Managers.QueueManager.PlayNextTrack()
+            bus.emit('playback:ended', {})
         })
 
-        //
-        // Controls
         this.controls.progressSlider.addEventListener('input', () => {
-            this.audioElement.currentTime = (parseFloat(this.controls.progressSlider.value) / 100) * this.audioElement.duration
-            Managers.LyricsManager.SyncLyrics()
-            Managers.LyricsManager.UpdateLyricsPositionIndicator(true)
+            this.audioElement.currentTime = Math.min(
+                parseFloat(this.controls.progressSlider.value) / 100 * this.audioElement.duration,
+                this.audioElement.duration - 0.001,
+            )
+
+            if (!this.audioElement.paused)
+                this.audioElement.pause()
+
+            bus.emit('playback:seek', {})
         })
 
-        this.controls.syncButton.addEventListener('click', () => Managers.LyricsManager.SyncLyrics())
+        this.controls.syncButton.addEventListener('click', () => {
+            bus.emit('lyrics:sync-request', {})
+        })
+
         this.controls.playButton.addEventListener('click', () => {
             if (this.audioElement.paused) {
                 if (this.audioElement.readyState === 0)
-                    Managers.QueueManager.PlayNextTrack()
+                    bus.emit('queue:next', {})
                 else this.audioElement.play()
             } else this.audioElement.pause()
         })
 
         this.controls.playNextButton.addEventListener('click', () => {
-            Managers.QueueManager.PlayNextTrack()
+            bus.emit('queue:next', {})
         })
 
-        // shuffle
-        this.controls.shuffleQueue.addEventListener('click', () => this.ShuffleQueue())
+        this.controls.shuffleQueue.addEventListener('click', () => {
+            bus.emit('queue:shuffle', {})
+        })
 
-        // spacebar play/pause
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
                 e.preventDefault()
@@ -108,84 +118,53 @@ export class PlayerManager extends Manager {
             }
         })
 
-        // volume
         this.SetVolume()
         this.controls.volumeSlider.addEventListener('input', () => this.SetVolume())
 
-        // progress updating
-        Managers.UpdateManager.AddUpdateListener(() => this.UpdateProgressIndicators())
+        updateManager.AddUpdateListener(() => this.UpdateProgressIndicators())
     }
 
-    ShuffleQueue() {
-        const safeIndex = Managers.QueueManager.GetFirstSafeQueueIndex()
-        const queue = Managers.QueueManager.queue
-
-        for (let i = queue.length - 1; i > safeIndex; i--) {
-            const j = Math.floor(Math.random() * (i - safeIndex + 1)) + safeIndex;
-            [queue[i], queue[j]] = [queue[j], queue[i]]
-        }
-
-        Managers.QueueManager.SyncQueueChanges()
-    }
-
-    /**
-     * Sets the audio volume.
-     * @param volume Optional - Volume ranging from 0 - 100. If not provided, it will use the current value of the volume slider.
-     */
     SetVolume = (volume: number = parseFloat(this.controls.volumeSlider.value)) => {
         this.audioElement.volume = Math.min(Math.max(volume, 0), 100) / 100
     }
 
-    /**
-     * Sets the play button icon based on whether the audio is playing or paused.
-     */
-    UpdatePlayButtonState () {
+    UpdatePlayButtonState() {
         this.controls.playButton.innerText = this.audioElement.paused ? '▶' : '⏸'
     }
 
-    /**
-     * Enabled or disables player controls.
-     * @param enabled
-     */
     SetControlsEnabled(enabled?: boolean) {
         console.log(`Player controls ${enabled ? 'enabled' : 'disabled'}.`)
 
-        // this.controls.playButton.disabled = !enabled
         this.controls.progressSlider.disabled = !enabled
         this.controls.volumeSlider.disabled = !enabled
-        this.controls.syncButton.disabled = enabled ? Managers.LyricsManager.state.synced : false
+        this.controls.syncButton.disabled = enabled ? this.#lyricsSynced : false
 
         this.UpdatePlayButtonState()
     }
 
-    /**
-     * Loads an audio file into the audio element using <source ...>.
-     * @param file the audio file to load
-     */
-    LoadAudioFile (file: File) {
+    LoadAudioFile(file: File | Blob) {
         if (!file.type.startsWith('audio/')) {
             alert('Invalid audio file.')
             return
         }
 
-        console.log(`Loading audio file: ${file.name}`)
+        console.log(`Loading audio file`)
         const reader = new FileReader()
 
         reader.onload = () => {
             this.audioElement.innerHTML = `<source src="${reader.result}" type="${file.type}">`
             this.audioElement.load()
 
-            console.log(`${file.name} loaded.`)
+            console.log(`Audio loaded.`)
         }
 
         reader.readAsDataURL(file)
     }
 
-    LoadTrack (track: Track, playOnLoad: boolean = false) {
+    LoadTrack(track: Track, playOnLoad: boolean = false) {
         this.playOnNextTrackLoad = playOnLoad
         this.LoadAudioFile(track.audioFile)
-
-        Managers.LyricsManager.LoadFromTrack(track)
+        bus.emit('track:loaded', { track })
     }
 
     SkipCurrentTrack() {
@@ -194,8 +173,7 @@ export class PlayerManager extends Manager {
         this.audioElement.load()
     }
 
-    /** */
-    UpdateProgressIndicators () {
+    UpdateProgressIndicators() {
         const progress = (this.audioElement.currentTime / this.audioElement.duration) * 100
         this.controls.progressSlider.value = `${progress}`
 
@@ -203,7 +181,6 @@ export class PlayerManager extends Manager {
         const minutes = Math.floor(time / 60) || '0'
         const seconds = Math.floor(time % 60) || '00'
 
-        // @ts-ignore
-        sqs('#player-label-progress .currentTime').innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`
+        this.#progressTimeLabel.innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`
     }
 }

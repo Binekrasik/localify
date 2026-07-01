@@ -1,7 +1,7 @@
 import { getTimestampTag } from './lrcutils'
 import sqs, { sqsa } from '../shortQuerySelector'
 import { Manager } from '../Manager'
-import { Managers } from '../state/Managers'
+import { bus, updateManager } from '../state/Managers'
 import { LyricsEditor } from './LyricsEditor'
 import type { LyricsLine } from './LyricsLine'
 import type { Track } from '../track/Track'
@@ -13,7 +13,6 @@ export class LyricsManager extends Manager {
         currentLineIndex: -1,
         currentLineElement: null as HTMLParagraphElement | null,
         synced: true,
-        editingMode: true,
     }
 
     #lyricsEditor = new LyricsEditor()
@@ -22,21 +21,29 @@ export class LyricsManager extends Manager {
     #lyricsPositionIndicator = sqs<HTMLParagraphElement>(
         '#lyrics-positionIndicator',
     )
+    #audioElement = sqs<HTMLAudioElement>('#audioPlayer')
+    #lyricsLineElements = new Map<number, HTMLParagraphElement>()
 
     Initialize(): void {
         this.#InitHooks()
-        // this.#lyricsEditor.Enable()
+        this.#initBusListeners()
+    }
+
+    #initBusListeners() {
+        bus.on('track:loaded', ({ track }) => this.LoadFromTrack(track))
+        bus.on('playback:seek', () => {
+            this.SyncLyrics()
+            this.UpdateLyricsPositionIndicator(true)
+        })
+        bus.on('playback:ended', () => this.UpdateLyricsPositionIndicator(true))
+        bus.on('lyrics:sync-request', () => this.SyncLyrics())
+        bus.on('lyrics:reset', () => {
+            this.ResetLyrics()
+            this.ParseLoadLyricsText()
+        })
     }
 
     #InitHooks(): void {
-        /* sqs('#player-file-lyrics').addEventListener('change', event => {
-            const target = event.target as HTMLInputElement
-            const file = target.files?.[0]
-            if (!file) return
-
-            this.LoadFromFile(file)
-        }) */
-
         this.#lyricsContainerElement.addEventListener('wheel', () =>
             this.UnsyncLyrics(),
         )
@@ -44,38 +51,25 @@ export class LyricsManager extends Manager {
             this.UnsyncLyrics(),
         )
 
-        Managers.UpdateManager.AddUpdateListener(() =>
-            this.UpdateSyncedLyrics(),
-        )
+        updateManager.AddUpdateListener(() => {
+            this.UpdateSyncedLyrics()
+            this.UpdateLyricsPositionIndicator()
+        })
 
         this.ResetLyrics()
     }
 
-    /**
-     * Resets the current lyrics state and clears the lyrics element
-     */
     ResetLyrics() {
         this.ParseLoadLyricsText()
         this.SetAccentColor('#000')
     }
 
-    /**
-     * Parses and loads lyrics from the given text
-     * @param text Optional. LRC text to parse. If not provided, uses the current state's text.
-     * @param editingMode Optional. If true, adds timestamps alongside lyrics. Defaults to current editingMode state.
-     */
     ParseLoadLyricsText(
         text?: string,
         track?: Track,
-        editingMode: boolean = this.state.editingMode,
     ) {
-        // keep track of count of the actual lines
-        let index = 0
-
-        // clear lines buffer
         this.state.lines = []
 
-        // update the stored text if `text` is provided
         if (text && text.trim() !== '') this.state.text = text
         else if (track?.lyrics) this.state.text = track.lyrics
         else
@@ -84,37 +78,24 @@ export class LyricsManager extends Manager {
 
         console.log('Parsing lyrics...')
 
-        this.#lyricsElement.innerHTML = `
-            <div class="header">
-                <h1 class="author"></h1>
-                <h1 class="title"></h1>
-            </div>
-            `.trim()
-
-        const headerElements = {
-            author: sqs<HTMLHeadingElement>('#lyrics .header .author'),
-            title: sqs<HTMLHeadingElement>('#lyrics .header .title'),
-        }
+        let author = ''
+        let title = ''
+        let index = 0
 
         this.state.text.split('\n').forEach((line) => {
-            // parse line with the timestamp regex - [mm:ss..*?]<text>
             const match = line.match(/\[(\d{2}):(\d{2}\..*?)\](.*)/)
 
-            // check if matched
             if (match) {
                 const minutes = parseInt(match[1], 10)
                 const seconds = parseFloat(match[2])
 
-                // parse time into seconds
                 let time = minutes * 60 + seconds
 
-                // insert 00:00.00 timestamp if it's not present
                 if (time > 0 && index === 0) {
                     this.state.lines.push({ time: 0, index, text: '♪' })
                     index++
                 }
 
-                // prevent HTML injection
                 const text =
                     match[3].trim().length > 0
                         ? match[3].replaceAll(/\<.*?\>/gim, '').trim()
@@ -123,25 +104,18 @@ export class LyricsManager extends Manager {
 
                 index++
             } else {
-                // match lrc title
-                const author = line.match(/\[ar:(.*)\]/)
-                const title = line.match(/\[ti:(.*)\]/)
+                const authorMatch = line.match(/\[ar:(.*)\]/)
+                const titleMatch = line.match(/\[ti:(.*)\]/)
 
-                if (author) headerElements.author.innerText = author[1].trim()
-                if (title) headerElements.title.innerText = title[1].trim()
+                if (authorMatch) author = authorMatch[1].trim()
+                if (titleMatch) title = titleMatch[1].trim()
             }
         })
 
-        if (track) {
-            if (headerElements.author.innerText === '')
-                headerElements.author.innerText = track.artist
+        const displayAuthor = author || track?.artist || ''
+        const displayTitle = title || track?.title || ''
 
-            if (headerElements.title.innerText === '')
-                headerElements.title.innerText = track.title
-        }
-
-        // insert all lines into the lyrics element
-        this.#lyricsElement.innerHTML += this.state.lines
+        const linesHtml = this.state.lines
             .map((line) =>
                 `<p
                 class="lyricsLine"
@@ -149,16 +123,27 @@ export class LyricsManager extends Manager {
                 data-index="${line.index}"
                 style="animation-delay: ${line.index * 0.01}s;"
             >
-                ${editingMode ? `<span class="timestamp">${getTimestampTag(line.time)}</span>` : ''}<span class="textContent">${line.text}</span>
+                <span class="timestamp">${getTimestampTag(line.time)}</span><span class="textContent">${line.text}</span>
             </p>`.trim(),
             )
             .join('')
 
-        this.#lyricsElement.innerHTML += '<h2 class="theEnd">fin.</h2>'
+        this.#lyricsElement.innerHTML = `
+            <div class="header">
+                <h1 class="author">${displayAuthor}</h1>
+                <h1 class="title">${displayTitle}</h1>
+            </div>
+            ${linesHtml}
+            <h2 class="theEnd">fin.</h2>
+        `.trim()
 
+        this.#lyricsLineElements.clear()
         this.#lyricsElement.querySelectorAll('.lyricsLine').forEach((p) => {
+            const lineIndex = parseInt(p.getAttribute('data-index')!)
+            this.#lyricsLineElements.set(lineIndex, p as HTMLParagraphElement)
+
             p.addEventListener('click', () => {
-                Managers.PlayerManager.audioElement.currentTime = parseFloat(
+                this.#audioElement.currentTime = parseFloat(
                     p.getAttribute('data-time')!,
                 )
                 this.#lyricsEditor.SetLyricsLineIndex(
@@ -168,8 +153,6 @@ export class LyricsManager extends Manager {
                 this.SyncLyrics()
             })
         })
-
-        // this.#lyricsEditor.UpdateLineIndicator()
     }
 
     SetAccentColor(color: string) {
@@ -181,20 +164,20 @@ export class LyricsManager extends Manager {
 
     SyncLyrics() {
         this.state.synced = true
-        Managers.PlayerManager.controls.syncButton.disabled = true
+        bus.emit('lyrics:synced', {})
+
+        this.UpdateSyncedLyrics(true)
     }
 
     UnsyncLyrics() {
         this.state.synced = false
-        Managers.PlayerManager.controls.syncButton.disabled = false
+        bus.emit('lyrics:unsynced', {})
     }
 
     UpdateLyricsPositionIndicator(
         overridePaused: boolean = false,
     ): boolean | void {
-        console.log(Managers.PlayerManager.audioElement.currentTime)
-
-        if (Managers.PlayerManager.audioElement.paused && !overridePaused)
+        if (this.#audioElement.paused && !overridePaused)
             return true
 
         if (!this.state.currentLineElement) return
@@ -206,18 +189,16 @@ export class LyricsManager extends Manager {
         let nextTime =
             nextIndex !== -1
                 ? parseFloat(
-                      sqs(
-                          `.lyricsLine[data-index="${nextIndex}"]`,
-                      ).getAttribute('data-time')!,
+                      this.#lyricsLineElements.get(nextIndex)?.getAttribute('data-time')!,
                   )
-                : Managers.PlayerManager.audioElement.duration
+                : this.#audioElement.duration
 
         const textSpan = this.state.currentLineElement.querySelector(
             '.textContent',
         ) as HTMLSpanElement
 
         const currentPercentage =
-            (Managers.PlayerManager.audioElement.currentTime -
+            (this.#audioElement.currentTime -
                 parseFloat(
                     this.state.currentLineElement.getAttribute('data-time')!,
                 )) /
@@ -227,9 +208,6 @@ export class LyricsManager extends Manager {
                 ))
 
         const topOffset = textSpan.clientHeight * currentPercentage
-
-        // console.log(currentPercentage)
-        // console.log(topOffset)
 
         this.#lyricsPositionIndicator.style.setProperty(
             'top',
@@ -260,8 +238,9 @@ export class LyricsManager extends Manager {
         this.SetAccentColor(track.accentColor)
     }
 
-    UpdateSyncedLyrics() {
-        const time = Managers.PlayerManager.audioElement.currentTime
+    UpdateSyncedLyrics(forceSync?: boolean) {
+        const time = this.#audioElement.currentTime
+        const lineChanging = this.state.currentLineIndex
 
         sqsa('p[data-active="true"]')
             .filter(
@@ -272,7 +251,6 @@ export class LyricsManager extends Manager {
             )
             .forEach((line) => line.setAttribute('data-active', 'false'))
 
-        // find the current line
         this.state.lines
             .filter(
                 (line, index) =>
@@ -281,13 +259,10 @@ export class LyricsManager extends Manager {
                         index + 1 === this.state.lines.length),
             )
             .forEach((line) => {
-                const p = document.querySelector(
-                    `p[data-index="${line.index}"]`,
-                ) as HTMLParagraphElement
+                const p = this.#lyricsLineElements.get(line.index)
                 if (!p) return
 
-                // console.log(`Current line: ${ line.text }`)
-                if (this.state.synced)
+                if ((this.state.synced && line.index !== lineChanging) || (line.index === lineChanging && forceSync))
                     p.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
                 p.setAttribute('data-active', 'true')
@@ -295,7 +270,7 @@ export class LyricsManager extends Manager {
                 this.state.currentLineElement = p
             })
 
-        if (time === Managers.PlayerManager.audioElement.duration) {
+        if (time === this.#audioElement.duration) {
             this.state.currentLineIndex = -1
         }
     }
