@@ -18,8 +18,5 @@ export function getTimeFromTimestampTag(tag: string): number {
  * @param file the file to read
  */
 export async function readLrcFile(file: File): Promise<string> {
-    return new Promise(resolve => {
-        file.text()
-            .then(res => resolve(res.trim()))
-    })
+    return (await file.text()).trim()
 }

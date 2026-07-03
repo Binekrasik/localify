@@ -85,8 +85,9 @@ export class PlayerManager extends Manager {
                 this.audioElement.duration - 0.001,
             )
 
-            if (!this.audioElement.paused)
-                this.audioElement.pause()
+            if (this.audioElement.currentTime === this.audioElement.duration - 0.001)
+                if (!this.audioElement.paused)
+                    this.audioElement.pause()
 
             bus.emit('playback:seek', {})
         })
@@ -148,17 +149,11 @@ export class PlayerManager extends Manager {
             return
         }
 
-        console.log(`Loading audio file`)
-        const reader = new FileReader()
-
-        reader.onload = () => {
-            this.audioElement.innerHTML = `<source src="${reader.result}" type="${file.type}">`
-            this.audioElement.load()
-
-            console.log(`Audio loaded.`)
-        }
-
-        reader.readAsDataURL(file)
+        const oldSrc = this.audioElement.src
+        this.audioElement.src = URL.createObjectURL(file)
+        if (oldSrc.startsWith('blob:'))
+            URL.revokeObjectURL(oldSrc)
+        this.audioElement.load()
     }
 
     LoadTrack(track: Track, playOnLoad: boolean = false) {
@@ -168,8 +163,10 @@ export class PlayerManager extends Manager {
     }
 
     SkipCurrentTrack() {
-        this.audioElement.querySelectorAll('source').forEach(node => node.remove())
+        const oldSrc = this.audioElement.src
         this.audioElement.removeAttribute('src')
+        if (oldSrc.startsWith('blob:'))
+            URL.revokeObjectURL(oldSrc)
         this.audioElement.load()
     }
 

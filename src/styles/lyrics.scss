@@ -16,7 +16,7 @@
     justify-content: center;
 
     max-height: 100%;
-    
+
     overflow: scroll;
     overflow-x: hidden;
 
@@ -53,7 +53,7 @@
         position: absolute;
         width: 5px;
         height: 0;
-        
+
         background: rgba(colors.$foreground, .25);
 
         top: 0 !important;
@@ -134,7 +134,7 @@
             transition: 1s cubic-bezier(0, 1, 0.3, 1);
             opacity: 0;
             animation-fill-mode: forwards !important;
-            animation: .5s cubic-bezier(0, .78, .17, 1) animation-lyric-slideIn;
+            animation: .5s cubic-bezier(0, .58, .17, 1) animation-lyric-slideIn;
 
             display: flex;
             align-items: flex-start;

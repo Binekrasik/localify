@@ -2,16 +2,29 @@ import sqs from '../shortQuerySelector'
 import { Manager } from '../Manager'
 import { bus, updateManager, Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
-import { parseAudioFile } from '../track/parseAudioFile'
 import { readLrcFile } from '../lyrics/lrcutils'
 import { QueueTrackEntry } from './QueueTrackEntry'
 import { createElement } from '../domUtils'
 import type { ContextMenuEntry } from '../interaction/ContextMenuEntry'
 
+interface ParseResult {
+    type: 'parse-result'
+    index: number
+    total: number
+    title: string
+    artist: string
+    coverBuffer: ArrayBuffer | null
+    coverFormat: string | null
+    accentColor: string
+    format: string
+    error?: string
+}
+
 export class QueueManager extends Manager {
     queue: QueueTrackEntry[] = []
     #queueListElement = sqs('#queue') as HTMLDivElement
     #addToQueueInput = sqs('#player-add-to-queue') as HTMLInputElement
+    #currentWorker: Worker | null = null
 
     Initialize() {
         this.#initHooks()
@@ -36,120 +49,171 @@ export class QueueManager extends Manager {
             this.#addToQueueInput.value = ''
         })
 
-        new MutationObserver(mutationList => {
-            mutationList.forEach(mutation => {
-                if (mutation.type !== 'childList') return
-
-                if (
-                    this.#queueListElement.querySelectorAll('.queueItem')
-                        .length === 0
-                )
-                    sqs('#queueContainer .queueEmptyIndicator').removeAttribute(
-                        'data-hidden',
-                    )
-                else
-                    sqs('#queueContainer .queueEmptyIndicator').setAttribute(
-                        'data-hidden',
-                        'true',
-                    )
-            })
+        new MutationObserver(() => {
+            const hasItems = this.#queueListElement.children.length > 0
+            sqs('#queueContainer .queueEmptyIndicator').toggleAttribute('data-hidden', hasItems)
         }).observe(this.#queueListElement, { childList: true })
     }
 
     ProcessAudioAndLyricsFiles(files: File[]) {
-        console.log("Adding files:")
+        if (this.#currentWorker)
+            this.#currentWorker.terminate()
 
-        files
-            .filter(file => file.type.startsWith('audio/'))
-            .forEach(audioFile => {
-                console.log(`Adding: ${audioFile.name}`)
+        const audioFiles = files.filter(f => {
+            if (f.type.startsWith('audio/')) return true
+            const ext = '.' + f.name.split('.').pop()!.toLowerCase()
+            return ['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.opus'].includes(ext)
+        })
+        if (audioFiles.length === 0) return
 
-                const initialTrack = {} as Track
-                this.AddInitialTrackElement(initialTrack)
+        const entries: { audio: File; lyrics: File | undefined; format: string }[] = []
 
-                const match = audioFile.name
-                    .toLowerCase()
-                    .match(/(.*)\.[^.]+$/)
-                if (!match) return false
+        for (const audioFile of audioFiles) {
+            const match = audioFile.name.toLowerCase().match(/(.*)\.[^.]+$/)
+            const lyricsFile = match
+                ? files.find(f => f.name.toLowerCase().includes(match[1]) && f.name.toLowerCase().endsWith('.lrc'))
+                : undefined
 
-                const lyricsFile = files.find(file => {
-                    return (
-                        file.name.toLowerCase().includes(match[1]) &&
-                        file.name.toLowerCase().endsWith('.lrc')
-                    )
-                })
-
-                const splitName = audioFile.name.split('.')
-                initialTrack.format = splitName[splitName.length - 1]
-
-                this.AddTrackFromFile(audioFile, lyricsFile, initialTrack)
+            entries.push({
+                audio: audioFile,
+                lyrics: lyricsFile,
+                format: audioFile.name.split('.').pop() || '',
             })
+        }
+
+        const totalFiles = entries.length
+        Managers.LoadingBar.Show(totalFiles)
+        let processedCount = 0
+
+        const worker = new Worker(
+            new URL('../../workers/FileParserWorker.ts', import.meta.url),
+            { type: 'module' },
+        )
+        this.#currentWorker = worker
+
+        worker.postMessage({
+            type: 'parse-batch',
+            files: entries.map(e => e.audio),
+            total: entries.length,
+        })
+
+        worker.onmessage = (e: MessageEvent<ParseResult>) => {
+            const d = e.data
+            this.#processWorkerResult(d, entries, () => {
+                processedCount++
+                Managers.LoadingBar.Update(processedCount, totalFiles)
+                if (processedCount === totalFiles) {
+                    Managers.LoadingBar.Hide()
+                    this.#currentWorker = null
+                    worker.terminate()
+                }
+            }).catch(err => console.error('Worker result processing failed:', err))
+        }
+
+        worker.onerror = (err) => {
+            console.error('File parser worker failed:', err)
+            Managers.LoadingBar.Hide()
+            this.#currentWorker = null
+            worker.terminate()
+        }
     }
 
-    AddTrackFromFile(audioFile: File, lyricsFile?: File, initialTrack?: Track) {
-        new Promise<void>(async (resolve, _reject) => {
-            console.log(`Audio file name: ${audioFile.name}`)
-            let track = await parseAudioFile(audioFile)
+    async #processWorkerResult(
+        data: ParseResult,
+        entries: { audio: File; lyrics: File | undefined; format: string }[],
+        onComplete: () => void,
+    ) {
+        try {
+            const entry = entries[data.index]
+            if (!entry) return
 
-            if (initialTrack?.domElement)
-                track.domElement = initialTrack.domElement
-
-            let text: string | undefined
-            if (lyricsFile) {
-                try {
-                    text = await readLrcFile(lyricsFile)
-                } catch (exception) {
-                    console.warn(
-                        `Failed to load lyrics for track ${track.title}`,
-                    )
-                }
+            let coverBlobUrl: string | undefined
+            if (data.coverBuffer && data.coverFormat) {
+                coverBlobUrl = URL.createObjectURL(new Blob([data.coverBuffer], { type: data.coverFormat }))
             }
 
-            this.AddToQueue({ ...track, lyrics: text })
-            console.log('Track added!')
+            const track: Track = {
+                audioFile: entry.audio,
+                title: data.title,
+                artist: data.artist,
+                coverImage: coverBlobUrl,
+                lyrics: undefined,
+                isPlaying: false,
+                accentColor: data.accentColor,
+                format: data.format,
+                coverState: coverBlobUrl ? 'loaded' : 'none',
+            }
 
-            resolve()
-        }).catch(() => {
-            console.warn(`Failed to add track ${audioFile.name}.`)
-        })
+            this.AddToQueue(track)
+
+            // Update loading bar immediately — don't wait for lyrics
+            onComplete()
+
+            // Load lyrics asynchronously
+            if (entry.lyrics) {
+                const trackEntry = this.queue[this.queue.length - 1]
+                if (!trackEntry) return
+                try {
+                    trackEntry.track.lyrics = await readLrcFile(entry.lyrics)
+                    this.#updateQueueItemDOM(trackEntry)
+                } catch (err) {
+                    console.warn(`Failed to load lyrics for ${data.title}`, err)
+                }
+            }
+        } catch (err) {
+            console.warn(`Failed to add track:`, err)
+        }
     }
+    #updateQueueItemDOM(entry: QueueTrackEntry) {
+        const track = entry.track
+        const el = track.domElement
+        if (!el) return
 
-    AddInitialTrackElement(track: Track) {
-        const element = document.createElement('div')
-        element.classList.add('queueItem')
-        element.innerHTML = `
-            <img src="/assets/loader.svg" class="loader">
-            <div class="trackInfo">
-                <p class="name" data-loading="true"><span>loading some weird track</span></p>
-                <p class="trackStatus" data-loading="true"><span class="lyrics">loading lyrics</span></p>
-            </div>
-        `
+        const nameEl = el.querySelector('.name') as HTMLElement | null
+        const statusEl = el.querySelector('.trackStatus') as HTMLElement | null
+        const imgEl = el.querySelector('img') as HTMLImageElement | null
 
-        this.#queueListElement.appendChild(element)
-        track.domElement = element
+        if (nameEl) nameEl.textContent = track.title
+        if (statusEl) {
+            statusEl.innerHTML = `
+                <span class="format">${track.format}</span>
+                <span class="lyrics">${track.lyrics ? 'lyrics loaded' : 'no lyrics'}</span>
+            `
+            statusEl.setAttribute('data-loaded', String(Boolean(track.lyrics)))
+        }
+        if (imgEl && track.coverImage) {
+            imgEl.src = track.coverImage
+            imgEl.classList.remove('loader')
+        }
     }
 
     AddToQueue(track: Track) {
         const trackEntry = new QueueTrackEntry(track, -1)
         const domTrackElement = track.domElement || document.createElement('div')
-
         domTrackElement.classList.add('queueItem')
-        domTrackElement.setAttribute(
-            'data-playing',
-            track.isPlaying ? 'true' : 'false',
-        )
+        domTrackElement.setAttribute('data-playing', track.isPlaying ? 'true' : 'false')
+
+        const coverHtml = track.coverImage
+            ? `<img src="${track.coverImage}" alt="">`
+            : ``
+
+        const lyricsHtml = track.lyrics
+            ? `<span class="lyrics">lyrics loaded</span>`
+            : `<span class="lyrics">loading lyrics</span>`
 
         domTrackElement.innerHTML = `
-            <img src="${track.coverImage || ''}" alt="No image" >
+            ${coverHtml}
             <div class="trackInfo">
                 <p class="name">${track.title}</p>
-                <p class="trackStatus" data-loaded="${Boolean(track.lyrics)}"><span class="format">${track.format}</span><span class="lyrics">${track.lyrics ? 'lyrics loaded' : 'no lyrics'}</span></p>
+                <p class="trackStatus" data-loaded="${Boolean(track.lyrics)}">
+                    <span class="format">${track.format}</span>
+                    ${lyricsHtml}
+                </p>
             </div>
         `
 
         domTrackElement.addEventListener('mousedown', event => {
             if (event.button != 2) return
-
             Managers.ContextMenuManager.PopulateContextMenu(this.#getContextMenuEntries(trackEntry))
             Managers.ContextMenuManager.ShowContextMenu(event.clientX, event.clientY)
         })
@@ -209,8 +273,8 @@ export class QueueManager extends Manager {
                 icon: createElement('img', { src: '/assets/icons/view_image.svg' }),
                 text: createElement('p', {}, 'Show cover art'),
                 onClick: _ => {
-                    if (trackEntry.track.fullCoverImage)
-                        window.open(trackEntry.track.fullCoverImage, '_blank')?.focus()
+                    if (trackEntry.track.coverImage)
+                        window.open(trackEntry.track.coverImage, '_blank')?.focus()
                     else alert("The track doesn't have a cover image.")
                 },
             },
@@ -266,6 +330,8 @@ export class QueueManager extends Manager {
     }
 
     RemoveTrackFromQueue(trackEntry: QueueTrackEntry) {
+        if (trackEntry.track.coverImage)
+            URL.revokeObjectURL(trackEntry.track.coverImage)
         this.queue.splice(this.queue.indexOf(trackEntry), 1)
         this.RemoveTrackElement(trackEntry.track.domElement!)
     }
@@ -279,8 +345,6 @@ export class QueueManager extends Manager {
     }
 
     PlayNextTrack() {
-        console.log('Playing next track in queue.')
-
         if (this.queue.length > 0)
             if (this.queue[0].track.isPlaying) {
                 const removed = this.queue.shift()

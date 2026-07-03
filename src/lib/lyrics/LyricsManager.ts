@@ -174,6 +174,9 @@ export class LyricsManager extends Manager {
         bus.emit('lyrics:unsynced', {})
     }
 
+    #cachedLineTop = 0
+    #cachedLineLeft = 0
+
     UpdateLyricsPositionIndicator(
         overridePaused: boolean = false,
     ): boolean | void {
@@ -193,34 +196,28 @@ export class LyricsManager extends Manager {
                   )
                 : this.#audioElement.duration
 
+        const lineTime = parseFloat(
+            this.state.currentLineElement.getAttribute('data-time')!,
+        )
+        const currentPercentage = (this.#audioElement.currentTime - lineTime) / (nextTime - lineTime)
+
         const textSpan = this.state.currentLineElement.querySelector(
             '.textContent',
         ) as HTMLSpanElement
-
-        const currentPercentage =
-            (this.#audioElement.currentTime -
-                parseFloat(
-                    this.state.currentLineElement.getAttribute('data-time')!,
-                )) /
-            (nextTime -
-                parseFloat(
-                    this.state.currentLineElement.getAttribute('data-time')!,
-                ))
-
         const topOffset = textSpan.clientHeight * currentPercentage
 
-        this.#lyricsPositionIndicator.style.setProperty(
-            'top',
-            `${this.state.currentLineElement.offsetTop}px`,
-        )
-        this.#lyricsPositionIndicator.style.setProperty(
-            'left',
-            `${this.state.currentLineElement.offsetLeft}px`,
-        )
-        this.#lyricsPositionIndicator.style.setProperty(
-            'height',
-            `${topOffset}px`,
-        )
+        const newTop = this.state.currentLineElement.offsetTop
+        const newLeft = this.state.currentLineElement.offsetLeft
+
+        if (newTop !== this.#cachedLineTop) {
+            this.#lyricsPositionIndicator.style.setProperty('top', `${newTop}px`)
+            this.#cachedLineTop = newTop
+        }
+        if (newLeft !== this.#cachedLineLeft) {
+            this.#lyricsPositionIndicator.style.setProperty('left', `${newLeft}px`)
+            this.#cachedLineLeft = newLeft
+        }
+        this.#lyricsPositionIndicator.style.setProperty('height', `${topOffset}px`)
     }
 
     LoadFromTrack(track: Track) {

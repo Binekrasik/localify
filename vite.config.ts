@@ -3,4 +3,7 @@ export default {
         port: 3000,
         open: true,
     },
+    worker: {
+        format: 'es',
+    },
 }
