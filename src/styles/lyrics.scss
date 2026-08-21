@@ -1,5 +1,11 @@
 @use './colors.scss' as colors;
 
+@property --color-accent {
+    syntax: '<color>';
+    initial-value: #000;
+    inherits: true;
+}
+
 @keyframes animation-lyric-slideIn {
     0% {
         opacity: 0;
@@ -31,12 +37,6 @@
         width: 100vw;
         height: 100vh;
         display: block;
-
-        @property --color-accent {
-            syntax: '<color>';
-            initial-value: #000;
-            inherits: false;
-        }
 
         transition: 1s cubic-bezier(0, 1, 0.3, 1);
 
