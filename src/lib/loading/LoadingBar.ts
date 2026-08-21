@@ -1,7 +1,7 @@
 import sqs from '../shortQuerySelector'
 import { Manager } from '../Manager'
 
-export class LoadingBar extends Manager {
+export class LoadingBarManager extends Manager {
     #element = sqs<HTMLDivElement>('#loadingBar')
     #label = sqs<HTMLSpanElement>('#loadingBar .label')
     #fill = sqs<HTMLDivElement>('#loadingBar .fill')

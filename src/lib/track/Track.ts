@@ -2,6 +2,7 @@ export interface Track {
     audioFile: File | Blob
     title: string
     artist: string
+    album?: string
     coverImage?: string
     lyrics?: string
     domElement?: HTMLDivElement

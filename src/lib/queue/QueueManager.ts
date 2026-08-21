@@ -13,6 +13,7 @@ interface ParseResult {
     total: number
     title: string
     artist: string
+    album: string
     coverBuffer: ArrayBuffer | null
     coverFormat: string | null
     accentColor: string
@@ -82,7 +83,7 @@ export class QueueManager extends Manager {
         }
 
         const totalFiles = entries.length
-        Managers.LoadingBar.Show(totalFiles)
+        Managers.LoadingBarManager.Show(totalFiles)
         let processedCount = 0
 
         const worker = new Worker(
@@ -101,9 +102,9 @@ export class QueueManager extends Manager {
             const d = e.data
             this.#processWorkerResult(d, entries, () => {
                 processedCount++
-                Managers.LoadingBar.Update(processedCount, totalFiles)
+                Managers.LoadingBarManager.Update(processedCount, totalFiles)
                 if (processedCount === totalFiles) {
-                    Managers.LoadingBar.Hide()
+                    Managers.LoadingBarManager.Hide()
                     this.#currentWorker = null
                     worker.terminate()
                 }
@@ -112,7 +113,7 @@ export class QueueManager extends Manager {
 
         worker.onerror = (err) => {
             console.error('File parser worker failed:', err)
-            Managers.LoadingBar.Hide()
+            Managers.LoadingBarManager.Hide()
             this.#currentWorker = null
             worker.terminate()
         }
@@ -136,6 +137,7 @@ export class QueueManager extends Manager {
                 audioFile: entry.audio,
                 title: data.title,
                 artist: data.artist,
+                album: data.album || undefined,
                 coverImage: coverBlobUrl,
                 lyrics: undefined,
                 isPlaying: false,

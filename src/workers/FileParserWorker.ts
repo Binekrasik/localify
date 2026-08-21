@@ -3,6 +3,7 @@ import { parseBlob } from 'music-metadata'
 interface ManualMetadata {
     title: string
     artist: string
+    album: string
     accentColor: string
     picture: { data: Uint8Array; format: string } | null
 }
@@ -30,6 +31,7 @@ interface ParseResult {
     total: number
     title: string
     artist: string
+    album: string
     coverBuffer: ArrayBuffer | null
     coverFormat: string | null
     accentColor: string
@@ -45,20 +47,21 @@ const DEFAULT_ACCENT_COLOR = '#7050fd'
 // OGG page with OpusTags magic. When large cover art base64 spans
 // multiple pages, continuation pages are silently dropped.
 
-function parseVorbisComments(data: Uint8Array): { title: string; artist: string; picture: { data: Uint8Array; format: string } | null } {
+function parseVorbisComments(data: Uint8Array): { title: string; artist: string; album: string; picture: { data: Uint8Array; format: string } | null } {
     const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
     let off = 0
 
-    if (off + 4 > data.byteLength) return { title: '', artist: '', picture: null }
+    if (off + 4 > data.byteLength) return { title: '', artist: '', album: '', picture: null }
     const vendorLen = view.getUint32(off, true)
     off += 4 + vendorLen
 
-    if (off + 4 > data.byteLength) return { title: '', artist: '', picture: null }
+    if (off + 4 > data.byteLength) return { title: '', artist: '', album: '', picture: null }
     const numComments = view.getUint32(off, true)
     off += 4
 
     let title = ''
     let artist = ''
+    let album = ''
     let picture: { data: Uint8Array; format: string } | null = null
 
     for (let i = 0; i < numComments; i++) {
@@ -72,6 +75,8 @@ function parseVorbisComments(data: Uint8Array): { title: string; artist: string;
             title = commentStr.slice(6)
         } else if (commentStr.startsWith('ARTIST=')) {
             artist = commentStr.slice(7)
+        } else if (commentStr.startsWith('ALBUM=')) {
+            album = commentStr.slice(6)
         } else if (commentStr.startsWith('METADATA_BLOCK_PICTURE=') && !picture) {
             const b64 = commentStr.slice(23).replace(/[^A-Za-z0-9+/=]/g, '')
             let raw: Uint8Array
@@ -101,7 +106,7 @@ function parseVorbisComments(data: Uint8Array): { title: string; artist: string;
         }
     }
 
-    return { title, artist, picture }
+    return { title, artist, album, picture }
 }
 
 async function extractVibrantColor(imgData: Uint8Array, format: string): Promise<string> {
@@ -225,6 +230,7 @@ async function parseOpusMetadata(buf: ArrayBuffer): Promise<ManualMetadata | nul
                     return {
                         title: vorbis.title || '',
                         artist: vorbis.artist || '',
+                        album: vorbis.album || '',
                         accentColor,
                         picture: vorbis.picture,
                     }
@@ -283,6 +289,7 @@ async function parseOpusFile(file: File, index: number, total: number, ext: stri
                 index, total,
                 title: manual.title || file.name.replace(/\.[^.]+$/, ''),
                 artist: manual.artist || 'Unknown Artist',
+                album: manual.album,
                 coverBuffer,
                 coverFormat,
                 accentColor: manual.accentColor,
@@ -305,6 +312,7 @@ async function parseOpusFile(file: File, index: number, total: number, ext: stri
             index, total,
             title: metadata.common.title || file.name.replace(/\.[^.]+$/, ''),
             artist: metadata.common.artist || 'Unknown Artist',
+            album: metadata.common.album || '',
             coverBuffer, coverFormat,
             accentColor: DEFAULT_ACCENT_COLOR,
             format: ext,
@@ -315,6 +323,7 @@ async function parseOpusFile(file: File, index: number, total: number, ext: stri
             index, total,
             title: file.name.replace(/\.[^.]+$/, ''),
             artist: 'Unknown Artist',
+            album: '',
             coverBuffer: null, coverFormat: null,
             accentColor: DEFAULT_ACCENT_COLOR,
             format: ext,
@@ -340,6 +349,7 @@ async function parseNonOpusFile(file: File, index: number, total: number, ext: s
             index, total,
             title: metadata.common.title || file.name.replace(/\.[^.]+$/, ''),
             artist: metadata.common.artist || 'Unknown Artist',
+            album: metadata.common.album || '',
             coverBuffer, coverFormat,
             accentColor: DEFAULT_ACCENT_COLOR,
             format: ext,
@@ -350,6 +360,7 @@ async function parseNonOpusFile(file: File, index: number, total: number, ext: s
             index, total,
             title: file.name.replace(/\.[^.]+$/, ''),
             artist: 'Unknown Artist',
+            album: '',
             coverBuffer: null, coverFormat: null,
             accentColor: DEFAULT_ACCENT_COLOR,
             format: ext,
