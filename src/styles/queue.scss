@@ -129,6 +129,12 @@ $queueMaxWidth: 380px;
         margin: 0;
     }
 
+    &:has(.queueItem) {
+        h2 {
+            display: none;
+        }
+    }
+
     #queue {
         display: flex;
         flex-direction: column;
