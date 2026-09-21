@@ -40,13 +40,11 @@
 
         transition: 1s cubic-bezier(0, 1, 0.3, 1);
 
-        // background-image: linear-gradient(
-        //     50deg,
-        //     color-mix(in srgb, var(--color-accent), #020202 90%),
-        //     color-mix(in srgb, var(--color-accent), #000 95%),
-        // );
-
-        background-color: color-mix(in srgb, var(--color-accent), #020202 90%);
+        background-image: linear-gradient(
+            -45deg,
+            hsl(from var(--color-accent) h 3 5),
+            hsl(from var(--color-accent) h 5 10)
+        );
     }
 
     #lyrics-editor-line-indicator {

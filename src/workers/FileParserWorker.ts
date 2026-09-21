@@ -111,30 +111,61 @@ function parseVorbisComments(data: Uint8Array): { title: string; artist: string;
 
 async function extractVibrantColor(imgData: Uint8Array, format: string): Promise<string> {
     try {
-        const blob = new Blob([new Uint8Array(imgData)], { type: format })
+        // Sanitize the format to prevent createImageBitmap from crashing
+        let cleanFormat = format.replace(/\0/g, '').trim().toLowerCase()
+        if (!cleanFormat.includes('/')) {
+            cleanFormat = cleanFormat === 'jpg' ? 'image/jpeg' : `image/${cleanFormat}`
+        }
+
+        const blob = new Blob([imgData as BlobPart], { type: cleanFormat })
         const bitmap = await createImageBitmap(blob)
         const sw = Math.min(bitmap.width, 100)
         const sh = Math.min(bitmap.height, 100)
         const canvas = new OffscreenCanvas(sw, sh)
         const ctx = canvas.getContext('2d')!
+
         ctx.drawImage(bitmap, 0, 0, sw, sh)
         const pixels = ctx.getImageData(0, 0, sw, sh).data
         bitmap.close()
 
+        const candidates: string[] = []
         let maxSat = -1
-        let vibrantColor = DEFAULT_ACCENT_COLOR
-        for (let i = 0; i < pixels.length; i += 16) {
-            const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2]
-            const sat = Math.max(r, g, b) - Math.min(r, g, b)
-            if (sat > maxSat) {
+
+        for (let i = 0; i < pixels.length; i += 20) {
+            const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2], a = pixels[i + 3]
+
+            // Ignore transparent or highly translucent pixels
+            if (a < 128) continue
+
+            const max = Math.max(r, g, b)
+            const min = Math.min(r, g, b)
+            const sat = max - min
+
+            // Filter out near-black or near-white noise
+            if (sat < 35 || max < 40 || min > 200) continue
+
+            const hex = '#' +
+                r.toString(16).padStart(2, '0') +
+                g.toString(16).padStart(2, '0') +
+                b.toString(16).padStart(2, '0')
+
+            // If we find a significantly higher saturation, reset the candidate pool
+            if (sat > maxSat + 20) {
                 maxSat = sat
-                vibrantColor = '#' +
-                    r.toString(16).padStart(2, '0') +
-                    g.toString(16).padStart(2, '0') +
-                    b.toString(16).padStart(2, '0')
+                candidates.length = 0
+                candidates.push(hex)
+            }
+            // Collect all colors that are within 20 points of the peak saturation
+            else if (sat >= maxSat - 20) {
+                candidates.push(hex)
             }
         }
-        return vibrantColor
+
+        if (candidates.length === 0) return DEFAULT_ACCENT_COLOR
+
+        // Pick a random vibrant color from top candidates across the entire image
+        const randomIndex = Math.floor(Math.random() * candidates.length)
+        return candidates[randomIndex]
     } catch {
         return DEFAULT_ACCENT_COLOR
     }
@@ -224,7 +255,7 @@ async function parseOpusMetadata(buf: ArrayBuffer): Promise<ManualMetadata | nul
 
                 try {
                     const vorbis = parseVorbisComments(full)
-                    const accentColor = vorbis.picture 
+                    const accentColor = vorbis.picture
                         ? await extractVibrantColor(vorbis.picture.data, vorbis.picture.format)
                         : DEFAULT_ACCENT_COLOR
                     return {
@@ -296,17 +327,22 @@ async function parseOpusFile(file: File, index: number, total: number, ext: stri
                 format: ext,
             }
         }
-        // Manual parser returned null — fall back to music-metadata with existing buffer
+
+        // Manual parser returned null — fall back to music-metadata
         const blob = new Blob([buf], { type: 'audio/ogg' })
         const metadata = await parseBlob(blob)
         const pic = metadata.common.picture?.[0]
         let coverBuffer: ArrayBuffer | null = null
         let coverFormat: string | null = null
+        let accentColor = DEFAULT_ACCENT_COLOR
+
         if (pic?.data) {
             const copy = new Uint8Array(pic.data)
             coverBuffer = copy.buffer as ArrayBuffer
-            coverFormat = pic.format
+            coverFormat = pic.format || 'image/jpeg'
+            accentColor = await extractVibrantColor(copy, coverFormat)
         }
+
         return {
             type: 'parse-result',
             index, total,
@@ -314,7 +350,7 @@ async function parseOpusFile(file: File, index: number, total: number, ext: stri
             artist: metadata.common.artist || 'Unknown Artist',
             album: metadata.common.album || '',
             coverBuffer, coverFormat,
-            accentColor: DEFAULT_ACCENT_COLOR,
+            accentColor,
             format: ext,
         }
     } catch (err) {
@@ -339,11 +375,15 @@ async function parseNonOpusFile(file: File, index: number, total: number, ext: s
         const pic = metadata.common.picture?.[0]
         let coverBuffer: ArrayBuffer | null = null
         let coverFormat: string | null = null
+        let accentColor = DEFAULT_ACCENT_COLOR
+
         if (pic?.data) {
             const copy = new Uint8Array(pic.data)
             coverBuffer = copy.buffer as ArrayBuffer
-            coverFormat = pic.format
+            coverFormat = pic.format || 'image/jpeg'
+            accentColor = await extractVibrantColor(copy, coverFormat)
         }
+
         return {
             type: 'parse-result',
             index, total,
@@ -351,7 +391,7 @@ async function parseNonOpusFile(file: File, index: number, total: number, ext: s
             artist: metadata.common.artist || 'Unknown Artist',
             album: metadata.common.album || '',
             coverBuffer, coverFormat,
-            accentColor: DEFAULT_ACCENT_COLOR,
+            accentColor,
             format: ext,
         }
     } catch (err) {

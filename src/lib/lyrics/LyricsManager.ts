@@ -61,7 +61,7 @@ export class LyricsManager extends Manager {
 
     ResetLyrics() {
         this.ParseLoadLyricsText()
-        this.SetAccentColor('#000')
+        this.SetAccentColor('#4634AF')
     }
 
     ParseLoadLyricsText(
@@ -74,7 +74,7 @@ export class LyricsManager extends Manager {
         else if (track?.lyrics) this.state.text = track.lyrics
         else
             this.state.text =
-                "[ar: no lyrics]\n[ti: There's absolutely nothing lol]"
+                "[ar: no lyrics]\n[ti: There's absolutely nothing to see]"
 
         console.log('Parsing lyrics...')
 
@@ -156,8 +156,6 @@ export class LyricsManager extends Manager {
     }
 
     SetAccentColor(color: string) {
-        console.log(`Settings lyrics accent color to ${color}`)
-
         const lyricsContainer = sqs<HTMLDivElement>('#lyricsContainer')
         lyricsContainer.style.setProperty('--color-accent', color)
     }

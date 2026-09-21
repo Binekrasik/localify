@@ -151,8 +151,10 @@ export class PlayerManager extends Manager {
 
         const oldSrc = this.audioElement.src
         this.audioElement.src = URL.createObjectURL(file)
+
         if (oldSrc.startsWith('blob:'))
             URL.revokeObjectURL(oldSrc)
+
         this.audioElement.load()
     }
 
