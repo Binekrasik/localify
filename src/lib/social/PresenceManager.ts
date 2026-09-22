@@ -15,6 +15,7 @@ const endpoint = 'ws://127.0.0.1:2137'
 const token: string | null = null
 const heartbeatDelay = 10_000
 const reconnectDelay = 15_000
+const enabled = false
 
 /**
  * Communicates live status with the specified presencify server.
@@ -25,6 +26,9 @@ export class PresenceManager extends Manager {
     #connecting = false
 
     Initialize() {
+        if (!enabled)
+            return
+
         this.#Connect()
         this.#initBusListeners()
 

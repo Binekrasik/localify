@@ -171,21 +171,17 @@ export class QueueManager extends Manager {
         const el = track.domElement
         if (!el) return
 
-        const nameEl = el.querySelector('.name') as HTMLElement | null
-        const statusEl = el.querySelector('.trackStatus') as HTMLElement | null
-        const imgEl = el.querySelector('img') as HTMLImageElement | null
+        const nameElem = el.querySelector('.name') as HTMLElement | null
+        const statusElem = el.querySelector('.trackInfo') as HTMLElement | null
+        const imgElem = el.querySelector('img') as HTMLImageElement | null
 
-        if (nameEl) nameEl.textContent = track.title
-        if (statusEl) {
-            statusEl.innerHTML = `
-                <span class="format">${track.format}</span>
-                <span class="lyrics">${track.lyrics ? 'lyrics loaded' : 'no lyrics'}</span>
-            `
-            statusEl.setAttribute('data-loaded', String(Boolean(track.lyrics)))
-        }
-        if (imgEl && track.coverImage) {
-            imgEl.src = track.coverImage
-            imgEl.classList.remove('loader')
+        if (nameElem) nameElem.textContent = track.title
+        if (statusElem)
+            statusElem.setAttribute('data-loaded', String(Boolean(track.lyrics)))
+
+        if (imgElem && track.coverImage) {
+            imgElem.src = track.coverImage
+            imgElem.classList.remove('loader')
         }
     }
 
@@ -199,17 +195,15 @@ export class QueueManager extends Manager {
             ? `<img src="${track.coverImage}" alt="">`
             : ``
 
-        const lyricsHtml = track.lyrics
-            ? `<span class="lyrics">lyrics loaded</span>`
-            : `<span class="lyrics">loading lyrics</span>`
-
         domTrackElement.innerHTML = `
             ${coverHtml}
             <div class="trackInfo">
-                <p class="name">${track.title}</p>
-                <p class="trackStatus" data-loaded="${Boolean(track.lyrics)}">
-                    <span class="format">${track.format}</span>
-                    ${lyricsHtml}
+                <div class="trackHeader">
+                    <p class="name">${track.title}</p>
+                    <p class="format">${track.format}</p>
+                </div>
+                <p class="trackDetails" data-loaded="${Boolean(track.lyrics)}">
+                    <span class="artist">${track.artist}</span>
                 </p>
             </div>
         `
