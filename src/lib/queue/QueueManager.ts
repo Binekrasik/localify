@@ -87,7 +87,7 @@ export class QueueManager extends Manager {
         let processedCount = 0
 
         const worker = new Worker(
-            new URL('../../workers/FileParserWorker.ts', import.meta.url),
+            new URL('../workers/FileParserWorker.ts', import.meta.url),
             { type: 'module' },
         )
         this.#currentWorker = worker
