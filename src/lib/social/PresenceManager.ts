@@ -1,5 +1,5 @@
 import { Manager } from '../Manager'
-import { bus, Managers, updateManager } from '../state/Managers'
+import { bus, Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
 
 interface NowPlaying {
@@ -15,7 +15,7 @@ const endpoint = 'ws://127.0.0.1:2137'
 const token: string | null = null
 const heartbeatDelay = 10_000
 const reconnectDelay = 15_000
-const enabled = false
+const enabled = true
 
 /**
  * Communicates live status with the specified presencify server.
@@ -32,13 +32,9 @@ export class PresenceManager extends Manager {
         this.#Connect()
         this.#initBusListeners()
 
-        updateManager.CreateTimer({
-            delay: heartbeatDelay,
-            callback: () => {
-                this.#Report()
-                return false
-            },
-        })
+        // Not an UpdateManager timer: those tick on requestAnimationFrame, which stops
+        // whenever the tab is hidden, and presencify then idles the presence out.
+        setInterval(() => this.#Report(), heartbeatDelay)
     }
 
     #initBusListeners() {
@@ -52,8 +48,16 @@ export class PresenceManager extends Manager {
         bus.on('playback:seek', () => this.#Report())
 
         bus.on('playback:ended', () => {
-            this.#track = null
-            this.#Send({ type: 'clear' })
+            // The queue may load the next track before or after this listener runs.
+            // Loading resets the audio element, so once every listener has had its
+            // turn, a player still sitting at the end means nothing followed.
+            queueMicrotask(() => {
+                if (!Managers.PlayerManager.audioElement.ended)
+                    return
+
+                this.#track = null
+                this.#Send({ type: 'clear' })
+            })
         })
 
         window.addEventListener('beforeunload', () => this.#Send({ type: 'clear' }))
