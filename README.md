@@ -1,7 +1,7 @@
 # localify
 
 > [!WARNING]
-> This is a hobby project. I do NOT guarantee any maintenance or responsibility.
+> This is a hobby project. I do not guarantee any kind of maintenance or responsibility.
 
 ## Running
 1. Clone the repo
