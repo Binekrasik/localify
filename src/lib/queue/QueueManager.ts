@@ -315,13 +315,12 @@ export class QueueManager extends Manager {
         element.style.left = `${element.offsetLeft}px`
         element.style.position = 'absolute'
         element.setAttribute('data-removed', 'true')
+        this.SyncQueueChanges()
 
         updateManager.CreateTimer({
-            callback: () => {
-                element.remove()
-                this.SyncQueueChanges()
-            },
+            callback: () => element.remove(),
             delay: 300,
+            iterations: 1,
         })
     }
 
