@@ -4,10 +4,14 @@
     position: absolute;
     display: flex;
     flex-direction: column;
-    z-index: -100;
+    z-index: 100;
     opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
 
-    transition: opacity cubic-bezier(0.63, 0.234, 0, 1) 0.2s;
+    transition:
+        opacity 0.2s cubic-bezier(0.63, 0.234, 0, 1),
+        visibility 0s 0.2s;
 
     backdrop-filter: blur(20px);
     background: rgba(#777, 0.05);
@@ -17,8 +21,10 @@
     user-select: none;
 
     &[data-visible="true"] {
-        z-index: 100;
         opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transition-delay: 0s;
     }
 
     p {
@@ -40,12 +46,26 @@
 
         color: colors.$foreground;
 
+        img {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+            object-fit: contain;
+        }
+
         &:hover {
             background: rgba(colors.$foreground, 0.15);
         }
 
         &:active {
             background: rgba(colors.$foreground, 0.05);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        &,
+        .clickable {
+            transition: none;
         }
     }
 }

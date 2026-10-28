@@ -31,6 +31,7 @@ export class LyricsManager extends Manager {
 
     #initBusListeners() {
         bus.on('track:loaded', ({ track }) => this.LoadFromTrack(track))
+        bus.on('track:unloaded', () => this.ResetLyrics())
         bus.on('playback:seek', () => {
             this.SyncLyrics()
             this.UpdateLyricsPositionIndicator(true)

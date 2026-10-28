@@ -32,7 +32,54 @@
     }
 }
 
+@keyframes animationQueueTitleScroll {
+    0%,
+    10% {
+        transform: translateX(0);
+    }
+
+    90%,
+    100% {
+        transform: translateX(min(0px, calc(100cqw - 100%)));
+    }
+}
+
 $queueMaxWidth: 380px;
+
+.queueSelectionBox,
+.queueDropIndicator,
+.queueDragPreview {
+    position: fixed;
+    pointer-events: none;
+    z-index: 110;
+}
+
+.queueSelectionBox {
+    border: 1px solid rgba(colors.$foreground, 0.3);
+    background: rgba(colors.$foreground, 0.05);
+}
+
+.queueDropIndicator {
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(colors.$foreground, 0.3);
+    box-shadow: 0 0 6px rgba(colors.$background, 0.6);
+    transition: top 0.15s cubic-bezier(0, 0.78, 0.17, 1);
+}
+
+.queueDragPreview {
+    z-index: 1000;
+    max-width: 240px;
+    padding: 8px 12px;
+    border: 1px solid rgba(colors.$foreground, 0.4);
+    border-radius: 4px;
+    background: rgba(colors.$background, 0.9);
+    color: colors.$foreground;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 #app[data-zen="true"] {
     #queueContainer[data-collapsable="true"] {
@@ -129,15 +176,11 @@ $queueMaxWidth: 380px;
         margin: 0;
     }
 
-    &:has(.queueItem) {
-        h2 {
-            display: none;
-        }
-    }
-
     #queue {
         display: flex;
         flex-direction: column;
+        position: relative;
+        isolation: isolate;
 
         overflow: scroll;
         overflow-x: hidden;
@@ -150,6 +193,37 @@ $queueMaxWidth: 380px;
         padding: 0 1.5rem 1.5rem;
 
         gap: 10px;
+        user-select: none;
+        outline: none;
+
+        &[data-gesture="dragging"],
+        &[data-gesture="dragging"] .queueItem {
+            cursor: grabbing;
+        }
+
+        .queueSelectionHighlight {
+            position: absolute;
+            pointer-events: none;
+            z-index: -1;
+            border: 2px solid rgba(colors.$foreground, 0.22);
+            background: rgba(colors.$foreground, 0.08);
+            transition:
+                opacity 0.18s cubic-bezier(0.63, 0.234, 0, 1),
+                top 0.2s cubic-bezier(0, 0.78, 0.17, 1),
+                left 0.2s cubic-bezier(0, 0.78, 0.17, 1),
+                width 0.2s cubic-bezier(0, 0.78, 0.17, 1),
+                height 0.2s cubic-bezier(0, 0.78, 0.17, 1);
+
+            &[data-moving="true"],
+            &[data-merging="true"] {
+                transition-property: opacity;
+            }
+
+            &[data-dragging="true"] {
+                border-style: dashed;
+                opacity: 0.65;
+            }
+        }
 
         h1 {
             font-size: 28px;
@@ -176,6 +250,7 @@ $queueMaxWidth: 380px;
             display: flex;
 
             position: relative;
+            flex-shrink: 0;
 
             border: 2px solid transparent;
 
@@ -185,7 +260,6 @@ $queueMaxWidth: 380px;
                 background-color 0.3s cubic-bezier(0.63, 0.234, 0, 1),
                 padding-left 0.3s cubic-bezier(0.63, 0.234, 0, 1),
                 opacity 0.3s cubic-bezier(0.63, 0.234, 0, 1),
-                transform 0.3s cubic-bezier(0.63, 0.234, 0, 1),
                 border 0.5s cubic-bezier(0, 1, 0.3, 1);
             animation: 0.4s cubic-bezier(0.63, 0.234, 0, 1)
                 animationQueueItemSlideIn;
@@ -208,9 +282,46 @@ $queueMaxWidth: 380px;
                 padding-left: 20px;
             }
 
+            &[data-selected="true"] {
+                background: transparent;
+                border-color: transparent;
+            }
+
+            &[data-dragging="true"] {
+                opacity: 0.65;
+            }
+
             &[data-removed="true"] {
-                opacity: 0;
-                transform: translateX($queueMaxWidth);
+                pointer-events: none;
+            }
+
+            .queuePinIndicator {
+                display: none;
+                position: absolute;
+                top: 50%;
+                right: 0;
+                transform: translateY(-50%);
+                width: 20px;
+                height: 20px;
+                background: url('/assets/icons/push_pin_filled.svg') center / contain no-repeat;
+                opacity: 0.7;
+            }
+
+            &[data-pinned="true"] {
+                .trackHeader {
+                    padding-right: 28px;
+                }
+
+                .queuePinIndicator {
+                    display: block;
+                }
+            }
+
+            @media (prefers-reduced-motion: no-preference) {
+                &:hover .nameText {
+                    width: max-content;
+                    animation: animationQueueTitleScroll 10s linear infinite alternate;
+                }
             }
 
             .loader {
@@ -224,6 +335,7 @@ $queueMaxWidth: 380px;
             }
 
             p {
+                transition: color 0.3s cubic-bezier(0.63, 0.234, 0, 1);
                 font-weight: 600;
                 font-size: 15px;
                 width: fit-content;
@@ -259,6 +371,7 @@ $queueMaxWidth: 380px;
             img {
                 width: 50px;
                 height: 50px;
+                flex-shrink: 0;
                 object-fit: cover;
                 margin-right: 1rem;
             }
@@ -267,6 +380,8 @@ $queueMaxWidth: 380px;
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
+                flex: 1;
+                min-width: 0;
 
                 gap: 1px;
 
@@ -280,36 +395,62 @@ $queueMaxWidth: 380px;
                 .trackHeader {
                     display: flex;
                     align-items: center;
+                    position: relative;
 
                     gap: 5px;
 
-                    // this label overflows and pushes the format indicator
-                    // todo: fix this
                     .name {
+                        flex: 1;
+                        min-width: 0;
+                        container-type: inline-size;
+                        overflow: hidden;
                         font-size: 18px;
                         font-weight: 600;
+
+                        .nameText {
+                            display: block;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        }
                     }
+                }
+
+                .trackDetails {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    max-width: 100%;
 
                     .format {
+                        flex-shrink: 0;
                         font-size: 13px;
                         font-weight: 800;
 
                         background: rgba(colors.$foreground, .35);
 
                         padding: 0 7px 2px;
-                        margin-right: 6px;
-                        margin-top: 2px;
-
                         height: fit-content;
                     }
-                }
 
-                .trackDetails {
                     .artist {
+                        min-width: 0;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
                         color: rgba(colors.$foreground, .5)
                     }
                 }
             }
         }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #queueContainer,
+    #queueContainer *,
+    .queueSelectionBox,
+    .queueDropIndicator,
+    .queueDragPreview {
+        animation: none !important;
+        transition: none !important;
     }
 }

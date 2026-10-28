@@ -165,11 +165,17 @@ export class PlayerManager extends Manager {
     }
 
     SkipCurrentTrack() {
+        this.playOnNextTrackLoad = false
+        this.audioElement.pause()
+        this.isPlaying = false
         const oldSrc = this.audioElement.src
         this.audioElement.removeAttribute('src')
         if (oldSrc.startsWith('blob:'))
             URL.revokeObjectURL(oldSrc)
         this.audioElement.load()
+        this.SetControlsEnabled(false)
+        sqs('#player-label-progress .endTime').innerText = '0:00'
+        bus.emit('track:unloaded', {})
     }
 
     UpdateProgressIndicators() {

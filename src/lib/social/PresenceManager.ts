@@ -43,6 +43,11 @@ export class PresenceManager extends Manager {
             this.#Report()
         })
 
+        bus.on('track:unloaded', () => {
+            this.#track = null
+            this.#Send({ type: 'clear' })
+        })
+
         bus.on('playback:play', () => this.#Report())
         bus.on('playback:pause', () => this.#Report())
         bus.on('playback:seek', () => this.#Report())

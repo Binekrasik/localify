@@ -6,6 +6,7 @@ interface EventMap {
     'playback:ended': Record<string, never>
     'playback:seek': Record<string, never>
     'track:loaded': { track: Track }
+    'track:unloaded': Record<string, never>
     'queue:play-request': { track: Track; play: boolean }
     'queue:next': Record<string, never>
     'queue:shuffle': Record<string, never>
