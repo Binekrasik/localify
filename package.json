@@ -14,8 +14,8 @@
     "vite": "^8.3.5"
   },
   "dependencies": {
-    "music-metadata": "^12.2.3",
-    "sass": "^1.106.1",
+    "music-metadata": "^12.3.3",
+    "sass": "^1.107.1",
     "uint8array-extras": "^1.6.0"
   }
 }
