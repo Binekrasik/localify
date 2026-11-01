@@ -260,7 +260,6 @@ $queueMaxWidth: 380px;
                 background-color 0.3s cubic-bezier(0.63, 0.234, 0, 1),
                 padding-left 0.3s cubic-bezier(0.63, 0.234, 0, 1),
                 opacity 0.3s cubic-bezier(0.63, 0.234, 0, 1),
-                // Match the selection highlight's entrance fade in QueueInteraction.
                 border-color 0.18s cubic-bezier(0.63, 0.234, 0, 1);
             animation: 0.4s cubic-bezier(0.63, 0.234, 0, 1)
                 animationQueueItemSlideIn;
@@ -268,11 +267,31 @@ $queueMaxWidth: 380px;
             cursor: default;
             user-select: none;
 
-            &:hover {
-                border-color: rgba(colors.$foreground, 0.25);
+            &::after {
+                content: "";
+                position: absolute;
+                inset: -2px;
+                z-index: -2;
+                pointer-events: none;
+                border: 2px solid rgba(colors.$foreground, 0.25);
+                opacity: 0;
+                clip-path: var(--queue-hover-clip, none);
+                transition: opacity var(--queue-hover-duration, 0.18s) cubic-bezier(0.63, 0.234, 0, 1);
+            }
+
+            &:hover::after {
+                opacity: 1;
+            }
+
+            &[data-selected="true"]::after {
+                opacity: 0;
             }
 
             &[data-playing="true"] {
+                &::after {
+                    border-left-color: transparent;
+                }
+
                 p {
                     color: colors.$foreground;
                 }
@@ -448,6 +467,7 @@ $queueMaxWidth: 380px;
 @media (prefers-reduced-motion: reduce) {
     #queueContainer,
     #queueContainer *,
+    #queueContainer .queueItem::after,
     .queueSelectionBox,
     .queueDropIndicator,
     .queueDragPreview {

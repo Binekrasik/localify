@@ -6,6 +6,7 @@ const dragHoldMilliseconds = 200;
 const pointerTolerancePixels = 10;
 const scrollEdgePixels = 48;
 const scrollPixelsPerSecond = 700;
+const selectionMotion = { duration: 200, easing: "cubic-bezier(0, 0.78, 0.17, 1)" };
 
 interface PointerPosition {
     x: number;
@@ -68,6 +69,7 @@ export class QueueInteraction {
     #dragPreview = document.createElement("div");
     #selectionHighlights: SelectionHighlight[] = [];
     #selectionMerges = new Map<HTMLElement, Animation>();
+    #hoverBorderAnimations = new Map<HTMLElement, Animation>();
     #overlayAnimations = new Map<HTMLElement, Animation>();
     #selectionResizeObserver = new ResizeObserver(() =>
         this.#renderSelectionHighlights(),
@@ -141,6 +143,8 @@ export class QueueInteraction {
             for (const animation of this.#overlayAnimations.values())
                 animation.finish();
             for (const animation of this.#selectionMerges.values())
+                animation.finish();
+            for (const animation of this.#hoverBorderAnimations.values())
                 animation.finish();
         });
     }
@@ -257,14 +261,24 @@ export class QueueInteraction {
         const selectionChanged =
             selected.size !== this.#selected.size ||
             [...selected].some((entry) => !this.#selected.has(entry));
+        const deselectedElements: HTMLElement[] = [];
         for (const entry of new Set([...this.#selected, ...selected])) {
             const isSelected = selected.has(entry);
             if (this.#selected.has(entry) === isSelected) continue;
-            entry.track.domElement?.setAttribute(
+            const element = entry.track.domElement;
+            if (!element) continue;
+            this.#hoverBorderAnimations.get(element)?.cancel();
+            this.#hoverBorderAnimations.delete(element);
+            element.style.removeProperty("--queue-hover-clip");
+            if (!isSelected) {
+                element.style.setProperty("--queue-hover-duration", "0s");
+                deselectedElements.push(element);
+            }
+            element.setAttribute(
                 "data-selected",
                 String(isSelected),
             );
-            entry.track.domElement?.setAttribute(
+            element.setAttribute(
                 "aria-selected",
                 String(isSelected),
             );
@@ -280,6 +294,14 @@ export class QueueInteraction {
                     );
         }
         this.#renderSelectionHighlights();
+        if (deselectedElements.length)
+            requestAnimationFrame(() => {
+                // Paint the immediate reveal before restoring the hover transition.
+                requestAnimationFrame(() => {
+                    for (const element of deselectedElements)
+                        element.style.removeProperty("--queue-hover-duration");
+                });
+            });
     }
 
     #scheduleSelectionHighlights() {
@@ -336,6 +358,7 @@ export class QueueInteraction {
                 }
             }
         }
+        this.#splitSelectionHighlights(groups);
         const previousHighlights = this.#selectionHighlights.map((highlight) => ({
             highlight,
             bounds: highlight.element.getBoundingClientRect(),
@@ -392,10 +415,89 @@ export class QueueInteraction {
         if (animating) this.#scheduleSelectionHighlights();
     }
 
+    #splitSelectionHighlights(groups: SelectionGroup[]) {
+        if (reducedQueueMotion.matches) return;
+        const splitHighlights: SelectionHighlight[] = [];
+        const queueBounds = this.#element.getBoundingClientRect();
+        for (const selection of [...this.#selectionHighlights]) {
+            const parts = groups.filter((group) =>
+                [...group.entries].some((entry) => selection.entries.has(entry)),
+            );
+            if (parts.length < 2 || parts.some((part) => part.moving)) continue;
+            const bounds = selection.element.getBoundingClientRect();
+            const entries = selection.entries;
+            this.#cancelSelectionMerge(selection.element);
+            for (let index = 1; index < parts.length; index++)
+                this.#animateHoverBorderGap(entries, parts[index - 1].bottom, parts[index].top, "opening");
+            for (const [index, part] of parts.entries()) {
+                const top = index === 0 ? bounds.top :
+                    Math.max(bounds.top, Math.min(bounds.bottom, (parts[index - 1].bottom + part.top) / 2));
+                const bottom = index === parts.length - 1 ? bounds.bottom :
+                    Math.max(top, Math.min(bounds.bottom, (part.bottom + parts[index + 1].top) / 2));
+                const highlight = index === 0 ? selection : {
+                    element: selection.element.cloneNode() as HTMLDivElement,
+                    entries: new Set<QueueTrackEntry>(),
+                };
+                highlight.entries = new Set([...part.entries].filter((entry) => entries.has(entry)));
+                Object.assign(highlight.element.style, {
+                    transitionProperty: "none",
+                    top: `${top - queueBounds.top + this.#element.scrollTop}px`,
+                    height: `${bottom - top}px`,
+                });
+                if (index > 0) {
+                    this.#element.appendChild(highlight.element);
+                    this.#selectionHighlights.push(highlight);
+                }
+                splitHighlights.push(highlight);
+            }
+        }
+        for (const { element } of splitHighlights) {
+            // Commit each slice's starting bounds before its edges transition to the selected rows.
+            element.getBoundingClientRect();
+            element.style.removeProperty("transition-property");
+        }
+    }
+
     #cancelSelectionMerge(element: HTMLElement) {
         this.#selectionMerges.get(element)?.cancel();
         this.#selectionMerges.delete(element);
         delete element.dataset.merging;
+    }
+
+    #animateHoverBorderGap(
+        entries: Iterable<QueueTrackEntry>, top: number, bottom: number, direction: "opening" | "closing",
+    ) {
+        const middle = (top + bottom) / 2;
+        for (const entry of entries) {
+            const element = entry.track.domElement;
+            if (!element) continue;
+            const bounds = element.getBoundingClientRect();
+            if (bounds.bottom <= top || bounds.top >= bottom) continue;
+            const gap = `inset(${top - bounds.top}px 0px ${bounds.bottom - bottom}px)`;
+            const seam = `inset(${middle - bounds.top}px 0px ${bounds.bottom - middle}px)`;
+            const opening = direction === "opening";
+            const opacity = getComputedStyle(element, "::after").opacity;
+            const duration = opening ? selectionMotion.duration : selectionMotion.duration + 180;
+            this.#hoverBorderAnimations.get(element)?.cancel();
+            element.style.setProperty("--queue-hover-clip", opening ? gap : seam);
+            // Only the border inside the animated gap is visible beneath the translucent highlights.
+            const animation = element.animate(
+                opening ? [
+                    { clipPath: seam, easing: selectionMotion.easing },
+                    { clipPath: gap },
+                ] : [
+                    { clipPath: gap, opacity, offset: 0, easing: selectionMotion.easing },
+                    { clipPath: seam, opacity, offset: selectionMotion.duration / duration, easing: queueMotion.easing },
+                    { clipPath: seam, opacity: 0, offset: 1 },
+                ],
+                { duration, pseudoElement: "::after" },
+            );
+            this.#hoverBorderAnimations.set(element, animation);
+            animation.onfinish = () => {
+                if (this.#hoverBorderAnimations.get(element) === animation)
+                    this.#hoverBorderAnimations.delete(element);
+            };
+        }
     }
 
     #animateSelectionMerge(element: HTMLElement, previous: DOMRect[], group: SelectionGroup) {
@@ -411,6 +513,9 @@ export class QueueInteraction {
             this.#cancelSelectionMerge(element);
             return;
         }
+        for (let index = 1; index < segments.length; index++)
+            this.#animateHoverBorderGap(group.entries, group.top + segments[index - 1].bottom,
+                group.top + segments[index].top, "closing");
         const filledSegments = segments.map((segment, index) => ({
             top: index === 0 ? 0 : (segments[index - 1].bottom + segment.top) / 2,
             bottom: index === segments.length - 1 ? height : (segment.bottom + segments[index + 1].top) / 2,
@@ -424,7 +529,7 @@ export class QueueInteraction {
         };
         const animation = element.animate(
             [{ clipPath: polygon(segments) }, { clipPath: polygon(filledSegments) }],
-            { duration: 200, easing: "cubic-bezier(0, 0.78, 0.17, 1)" },
+            selectionMotion,
         );
         this.#selectionMerges.set(element, animation);
         animation.onfinish = () => {
