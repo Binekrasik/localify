@@ -14,7 +14,7 @@ export class LoadingBarManager extends Manager {
     }
 
     Update(current: number, total: number) {
-        this.#label.textContent = `Loading file ${current + 1} of ${total}`
+        this.#label.textContent = `Loading ${current + 1}/${total} media files`
         this.#fill.style.width = `${((current + 1) / total) * 100}%`
     }
 

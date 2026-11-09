@@ -44,7 +44,70 @@
     }
 }
 
-$queueMaxWidth: 380px;
+$queueWidth: 384px;
+$queueHeaderHeight: 49px;
+$queueFooterHeight: 65px;
+// Visible width of the collapsed sidebar: the border, list padding and row inset around one cover.
+$queuePeek: 118px;
+// Extra space that pushes track text past the collapsed sidebar's visible edge.
+$queuePeekTextOffset: 20px;
+$queueListPadding: 20px;
+$queueRowPadding: 15px;
+$queueRowPlayingPadding: 21px;
+$queueActiveStroke: 0.1;
+
+$queueCollapseMotion: 0.3s cubic-bezier(0, 0.78, 0.17, 1);
+$queueButtonFeedback: 0.3s cubic-bezier(0, 1, 0.3, 1);
+$queueRowMotion: cubic-bezier(0.63, 0.234, 0, 1);
+
+// Trimming text to its cap height leaves descenders outside the box, so clipping
+// ancestors reserve room for them without changing the layout.
+$queueDescenderRoom: 6px;
+
+@mixin queueTrimmedText {
+    line-height: normal;
+    text-box-trim: trim-both;
+    text-box-edge: cap alphabetic;
+}
+
+@mixin queueDescenderSafeClip {
+    overflow: hidden;
+    padding-block: $queueDescenderRoom;
+    margin-block: -$queueDescenderRoom;
+}
+
+@mixin queueIconControl {
+    display: grid;
+    place-items: center;
+
+    // The tint and hit area extend past the icon without affecting layout.
+    padding: 4px;
+    margin: -4px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    cursor: pointer;
+
+    transition: background-color $queueButtonFeedback;
+
+    &:hover {
+        background: rgba(colors.$accent, 0.12);
+    }
+
+    &:active {
+        background: rgba(colors.$accent, 0.22);
+    }
+
+    &:focus-visible {
+        outline: 2px solid colors.$accent;
+        outline-offset: 1px;
+    }
+
+    img {
+        display: block;
+        pointer-events: none;
+    }
+}
 
 .queueSelectionBox,
 .queueDropIndicator,
@@ -55,14 +118,14 @@ $queueMaxWidth: 380px;
 }
 
 .queueSelectionBox {
-    border: 1px solid rgba(colors.$foreground, 0.3);
-    background: rgba(colors.$foreground, 0.05);
+    border: 1px solid rgba(colors.$accent, 0.3);
+    background: rgba(colors.$accent, 0.05);
 }
 
 .queueDropIndicator {
     height: 3px;
     border-radius: 2px;
-    background: rgba(colors.$foreground, 0.3);
+    background: rgba(colors.$accent, 0.3);
     box-shadow: 0 0 6px rgba(colors.$background, 0.6);
     transition: top 0.15s cubic-bezier(0, 0.78, 0.17, 1);
 }
@@ -71,7 +134,7 @@ $queueMaxWidth: 380px;
     z-index: 1000;
     max-width: 240px;
     padding: 8px 12px;
-    border: 1px solid rgba(colors.$foreground, 0.4);
+    border: 1px solid rgba(colors.$accent, 0.4);
     border-radius: 4px;
     background: rgba(colors.$background, 0.9);
     color: colors.$foreground;
@@ -83,50 +146,41 @@ $queueMaxWidth: 380px;
 
 #app[data-zen="true"] {
     #queueContainer[data-collapsable="true"] {
-        transform: translateX(
-            calc($queueMaxWidth - 1.5rem - 8px - 50px - 1.5rem - 10px)
-        );
-        position: fixed;
+        // The sidebar stays in the content row, so it keeps clear of the player at any height.
+        margin-left: -$queueWidth;
 
         .queueEmptyIndicator {
-            opacity: 0;
-            transition: 0.3s cubic-bezier(0, 0.78, 0.17, 1);
+            transition: $queueCollapseMotion;
         }
 
-        #queue {
-            h1 {
+        // The button keeps one screen position while the sidebar slides beneath it.
+        #queue-button-collapse {
+            transform: translateX(24px - $queuePeek * 0.5);
+        }
+
+        &:not(:hover):not(:has(:focus-visible)),
+        &[data-reveal-suppressed="true"] {
+            transform: translateX($queueWidth - $queuePeek);
+
+            .queueEmptyIndicator,
+            #queueHeader h1,
+            #loadingBar .label {
                 opacity: 0;
-                transition: 0.3s cubic-bezier(0, 0.78, 0.17, 1);
             }
 
-            .queueItem {
-                padding-left: 10px;
+            #queue-button-collapse {
+                transform: translateX($queuePeek * 0.5 + 24px - $queueWidth);
+            }
 
-                &[data-playing="true"] {
-                    border: 2px solid transparent;
+            #queue .queueItem {
+                padding-left: $queueRowPadding;
+
+                &::before {
+                    background-size: 100% 0, 100% 0, 0 100%, 100% 100%;
                 }
 
                 img {
-                    margin-right: calc(1.5rem + 10px);
-                }
-            }
-        }
-
-        &:hover {
-            transform: translateX(0);
-
-            .queueEmptyIndicator:not([data-hidden="true"]) {
-                opacity: 1;
-            }
-
-            #queue {
-                h1 {
-                    opacity: 1;
-                }
-
-                .queueItem[data-playing="true"] {
-                    border-color: transparent;
-                    background: rgba(colors.$foreground, 0.15);
+                    margin-right: $queuePeekTextOffset;
                 }
             }
         }
@@ -134,17 +188,37 @@ $queueMaxWidth: 380px;
 }
 
 #queueContainer {
-    width: $queueMaxWidth;
-    min-width: 300px;
-
-    border-left: 2px solid rgba(colors.$foreground, 0.1);
-
-    background: rgba(colors.$foreground, 0.05);
-    backdrop-filter: blur(20px);
-
-    transition: 0.3s cubic-bezier(0, 0.78, 0.17, 1);
-
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
     position: relative;
+
+    width: $queueWidth;
+
+    border-left: 1px solid rgba(colors.$accent, 0.2);
+
+    overflow: clip;
+    isolation: isolate;
+
+    transition: $queueCollapseMotion;
+
+    // A backdrop-filter on the sidebar itself would make it the bars' backdrop root,
+    // leaving them to blur only the rows and show the sharp originals through the blur.
+    &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+
+        background: rgba(colors.$foreground, 0.05);
+        backdrop-filter: blur(100px);
+    }
+
+    &:has(#queue:focus-visible) {
+        outline: 2px solid rgba(colors.$accent, 0.5);
+        outline-offset: -2px;
+    }
 
     .queueEmptyIndicator {
         text-align: center;
@@ -153,7 +227,7 @@ $queueMaxWidth: 380px;
 
         margin: 2rem 0;
 
-        color: rgba(colors.$foreground, 0.25);
+        color: rgba(colors.$accent, 0.35);
         opacity: 1;
 
         transition: 0.5s cubic-bezier(0, 0.78, 0.17, 1);
@@ -176,21 +250,114 @@ $queueMaxWidth: 380px;
         margin: 0;
     }
 
+    #queueHeader,
+    #queueFooter {
+        position: absolute;
+        left: 0;
+        right: 0;
+        z-index: 2;
+
+        background: rgba(colors.$foreground, 0.01);
+        backdrop-filter: blur(10px);
+    }
+
+    #queueHeader {
+        top: 0;
+        height: $queueHeaderHeight;
+        padding: 12px;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        border-bottom: 1px solid rgba(colors.$accent, 0.05);
+
+        h1 {
+            @include queueTrimmedText;
+
+            font-size: 18px;
+            color: rgba(colors.$accent, 0.5);
+            transition: opacity $queueCollapseMotion;
+        }
+    }
+
+    #queue-button-collapse {
+        @include queueIconControl;
+
+        position: absolute;
+        top: 12px;
+        right: 12px;
+
+        transition:
+            background-color $queueButtonFeedback,
+            transform $queueCollapseMotion;
+
+        img {
+            grid-area: 1 / 1;
+            transition: opacity $queueButtonFeedback;
+        }
+
+        .iconExpand {
+            opacity: 0;
+        }
+
+        &[aria-pressed="true"] {
+            .iconCollapse {
+                opacity: 0;
+            }
+
+            .iconExpand {
+                opacity: 1;
+            }
+        }
+    }
+
+    #queueFooter {
+        bottom: 0;
+        height: $queueFooterHeight;
+        padding: 20px 20px 20px 25px;
+
+        display: flex;
+        align-items: center;
+        gap: 20px;
+
+        border-top: 1px solid rgba(colors.$accent, 0.05);
+    }
+
+    .queueActions {
+        display: flex;
+        gap: 20px;
+        flex-shrink: 0;
+        margin-left: auto;
+
+        button,
+        label {
+            @include queueIconControl;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+    }
+
     #queue {
         display: flex;
         flex-direction: column;
         position: relative;
         isolation: isolate;
 
+        flex: 1;
+        min-height: 0;
+
         overflow: scroll;
         overflow-x: hidden;
 
-        height: 100%;
-
-        top: 0;
-        right: 0;
-
-        padding: 0 1.5rem 1.5rem;
+        // The list runs beneath the bars. QueueInteraction reads the scroll padding
+        // to find the part of the list they leave visible.
+        padding: ($queueHeaderHeight + $queueListPadding) $queueListPadding
+            ($queueFooterHeight + $queueListPadding);
+        scroll-padding-top: $queueHeaderHeight;
+        scroll-padding-bottom: $queueFooterHeight;
 
         gap: 10px;
         user-select: none;
@@ -205,8 +372,8 @@ $queueMaxWidth: 380px;
             position: absolute;
             pointer-events: none;
             z-index: -1;
-            border: 2px solid rgba(colors.$foreground, 0.22);
-            background: rgba(colors.$foreground, 0.08);
+            border: 2px solid rgba(colors.$accent, 0.22);
+            background: rgba(colors.$accent, 0.08);
             transition:
                 opacity 0.18s cubic-bezier(0.63, 0.234, 0, 1),
                 top 0.2s cubic-bezier(0, 0.78, 0.17, 1),
@@ -225,47 +392,58 @@ $queueMaxWidth: 380px;
             }
         }
 
-        h1 {
-            font-size: 28px;
-            font-weight: 500;
-
-            height: fit-content;
-
-            position: sticky;
-
-            padding: 1.75rem 0 0.75rem 0.25rem;
-
-            color: colors.$foreground;
-
-            span {
-                font-family: "JetBrains Mono";
-                color: rgba(colors.$foreground, 0.15);
-
-                font-weight: 500;
-            }
-        }
-
         .queueItem {
-            padding: 10px;
+            padding: 10px $queueRowPadding;
             display: flex;
+            align-items: center;
+            gap: 15px;
 
             position: relative;
             flex-shrink: 0;
 
             border: 2px solid transparent;
 
-            width: 100%;
+            // A fixed width lets the row use the list's padding so a classic scrollbar doesn't narrow it.
+            width: $queueWidth - 1px - 2 * $queueListPadding;
 
             transition:
-                background-color 0.3s cubic-bezier(0.63, 0.234, 0, 1),
-                padding-left 0.3s cubic-bezier(0.63, 0.234, 0, 1),
-                opacity 0.3s cubic-bezier(0.63, 0.234, 0, 1),
-                border-color 0.18s cubic-bezier(0.63, 0.234, 0, 1);
-            animation: 0.4s cubic-bezier(0.63, 0.234, 0, 1)
-                animationQueueItemSlideIn;
+                background-color 0.3s $queueRowMotion,
+                padding-left 0.3s $queueRowMotion,
+                opacity 0.3s $queueRowMotion,
+                border-color 0.18s $queueRowMotion;
+            animation: 0.4s $queueRowMotion animationQueueItemSlideIn;
 
             cursor: default;
             user-select: none;
+
+            // Playing state: the fill, the top and bottom strokes and the left indicator
+            // share one layer so they fade together.
+            &::before {
+                content: "";
+                position: absolute;
+                inset: -2px;
+                z-index: -1;
+                pointer-events: none;
+                opacity: 0;
+
+                background-image:
+                    linear-gradient(90deg, rgba(colors.$accent, $queueActiveStroke), rgba(colors.$accent, 0)),
+                    linear-gradient(90deg, rgba(colors.$accent, $queueActiveStroke), rgba(colors.$accent, 0)),
+                    linear-gradient(
+                        180deg,
+                        rgba(colors.$accent, 0.1),
+                        rgba(colors.$accent, 0.2) 50%,
+                        rgba(colors.$accent, 0.1)
+                    ),
+                    linear-gradient(90deg, rgba(colors.$accent, 0.2), rgba(148, 102, 107, 0));
+                background-position: left top, left bottom, left top, left top;
+                background-size: 100% 2px, 100% 2px, 2px 100%, 100% 100%;
+                background-repeat: no-repeat;
+
+                transition:
+                    opacity 0.3s $queueRowMotion,
+                    background-size $queueCollapseMotion;
+            }
 
             &::after {
                 content: "";
@@ -273,10 +451,10 @@ $queueMaxWidth: 380px;
                 inset: -2px;
                 z-index: -2;
                 pointer-events: none;
-                border: 2px solid rgba(colors.$foreground, 0.25);
+                border: 2px solid rgba(colors.$accent, 0.25);
                 opacity: 0;
                 clip-path: var(--queue-hover-clip, none);
-                transition: opacity var(--queue-hover-duration, 0.18s) cubic-bezier(0.63, 0.234, 0, 1);
+                transition: opacity var(--queue-hover-duration, 0.18s) $queueRowMotion;
             }
 
             &:hover::after {
@@ -288,23 +466,25 @@ $queueMaxWidth: 380px;
             }
 
             &[data-playing="true"] {
+                padding-left: $queueRowPlayingPadding;
+
+                &::before {
+                    opacity: 1;
+                }
+
                 &::after {
                     border-left-color: transparent;
                 }
-
-                p {
-                    color: colors.$foreground;
-                }
-
-                background: rgba(colors.$foreground, 0.15);
-
-                border-left-color: rgba(colors.$foreground, .25);
-                padding-left: 20px;
             }
 
             &[data-selected="true"] {
                 background: transparent;
                 border-color: transparent;
+
+                &::before {
+                    opacity: 0;
+                    transition-duration: 0.18s, 0.3s;
+                }
             }
 
             &[data-dragging="true"] {
@@ -323,7 +503,8 @@ $queueMaxWidth: 380px;
                 transform: translateY(-50%);
                 width: 20px;
                 height: 20px;
-                background: url('/assets/icons/push_pin_filled.svg') center / contain no-repeat;
+                background: colors.$accent;
+                mask: url('/assets/icons/push_pin_filled.svg') center / contain no-repeat;
                 opacity: 0.7;
             }
 
@@ -351,13 +532,13 @@ $queueMaxWidth: 380px;
 
                 width: 30px;
                 height: 30px;
-                margin: 10px calc(10px + 1rem) 10px 10px;
+                margin: 10px;
             }
 
             p {
-                transition: color 0.3s cubic-bezier(0.63, 0.234, 0, 1);
+                transition: color 0.3s $queueRowMotion;
                 font-weight: 600;
-                font-size: 15px;
+                font-size: 14px;
                 width: fit-content;
 
                 &[data-loading="true"] {
@@ -374,7 +555,7 @@ $queueMaxWidth: 380px;
 
                         background: linear-gradient(
                                 90deg,
-                                rgba(colors.$foreground, 0.5) 50%,
+                                rgba(colors.$accent, 0.5) 50%,
                                 transparent 0%
                             )
                             no-repeat;
@@ -383,7 +564,7 @@ $queueMaxWidth: 380px;
                         animation: animationPlaceholderShine 1s infinite;
                     }
 
-                    background: rgba(colors.$foreground, 0.15);
+                    background: rgba(colors.$accent, 0.15);
                     color: transparent;
                 }
             }
@@ -393,19 +574,19 @@ $queueMaxWidth: 380px;
                 height: 50px;
                 flex-shrink: 0;
                 object-fit: cover;
-                margin-right: 1rem;
+                transition: margin-right $queueCollapseMotion;
             }
 
             .trackInfo {
+                @include queueDescenderSafeClip;
+
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
                 flex: 1;
                 min-width: 0;
 
-                gap: 1px;
-
-                overflow: hidden;
+                gap: 7px;
 
                 p {
                     text-overflow: ellipsis;
@@ -420,16 +601,20 @@ $queueMaxWidth: 380px;
                     gap: 5px;
 
                     .name {
+                        @include queueDescenderSafeClip;
+
                         flex: 1;
                         min-width: 0;
                         container-type: inline-size;
-                        overflow: hidden;
                         font-size: 18px;
                         font-weight: 600;
+                        color: colors.$foreground;
 
                         .nameText {
+                            @include queueTrimmedText;
+                            @include queueDescenderSafeClip;
+
                             display: block;
-                            overflow: hidden;
                             text-overflow: ellipsis;
                         }
                     }
@@ -443,20 +628,26 @@ $queueMaxWidth: 380px;
 
                     .format {
                         flex-shrink: 0;
-                        font-size: 13px;
-                        font-weight: 800;
+                        font-size: 10px;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        color: rgba(colors.$accent, 0.6);
 
-                        background: rgba(colors.$foreground, .35);
+                        background: rgba(colors.$accent, 0.08);
+                        border-radius: 3px;
 
-                        padding: 0 7px 2px;
-                        height: fit-content;
+                        padding: 1px 4px;
+                        // The tag is taller than the artist's cap height and must not grow the row.
+                        margin-block: -4px;
                     }
 
                     .artist {
+                        @include queueTrimmedText;
+                        @include queueDescenderSafeClip;
+
                         min-width: 0;
-                        overflow: hidden;
                         text-overflow: ellipsis;
-                        color: rgba(colors.$foreground, .5)
+                        color: rgba(colors.$foreground, 0.5);
                     }
                 }
             }
@@ -467,6 +658,7 @@ $queueMaxWidth: 380px;
 @media (prefers-reduced-motion: reduce) {
     #queueContainer,
     #queueContainer *,
+    #queueContainer .queueItem::before,
     #queueContainer .queueItem::after,
     .queueSelectionBox,
     .queueDropIndicator,

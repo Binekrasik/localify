@@ -720,6 +720,18 @@ export class QueueInteraction {
         };
     }
 
+    /** The part of the list not covered by the sidebar's bars, which the list's scroll padding records. */
+    #visibleBounds() {
+        const bounds = this.#element.getBoundingClientRect();
+        const style = getComputedStyle(this.#element);
+        return {
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top + (parseFloat(style.scrollPaddingTop) || 0),
+            bottom: bounds.bottom - (parseFloat(style.scrollPaddingBottom) || 0),
+        };
+    }
+
     #updateGesture() {
         const gesture = this.#gesture;
         if (gesture?.kind === "selecting") this.#updateBoxSelection(gesture);
@@ -749,12 +761,13 @@ export class QueueInteraction {
                 ? [...gesture.initialSelection, ...entries]
                 : entries,
         );
+        const visible = this.#visibleBounds();
         const visibleLeft = Math.max(
             bounds.left,
             bounds.left + left - this.#element.scrollLeft,
         );
         const visibleTop = Math.max(
-            bounds.top,
+            visible.top,
             bounds.top + top - this.#element.scrollTop,
         );
         const visibleRight = Math.min(
@@ -762,7 +775,7 @@ export class QueueInteraction {
             bounds.left + right - this.#element.scrollLeft,
         );
         const visibleBottom = Math.min(
-            bounds.bottom,
+            visible.bottom,
             bounds.top + bottom - this.#element.scrollTop,
         );
         Object.assign(this.#selectionBox.style, {
@@ -779,7 +792,7 @@ export class QueueInteraction {
             left: `${Math.max(0, Math.min(gesture.pointer.x + 16, window.innerWidth - this.#dragPreview.offsetWidth))}px`,
             top: `${Math.max(0, Math.min(gesture.pointer.y + 16, window.innerHeight - this.#dragPreview.offsetHeight))}px`,
         });
-        const bounds = this.#element.getBoundingClientRect();
+        const bounds = this.#visibleBounds();
         gesture.validDrop =
             gesture.pointer.x >= bounds.left &&
             gesture.pointer.x <= bounds.left + this.#element.clientWidth &&
@@ -830,7 +843,7 @@ export class QueueInteraction {
                     ? 0
                     : Math.min(timestamp - previousTimestamp, 32) / 1000;
             previousTimestamp = timestamp;
-            const bounds = this.#element.getBoundingClientRect();
+            const bounds = this.#visibleBounds();
             if (
                 gesture.pointer.x >= bounds.left &&
                 gesture.pointer.x <= bounds.right

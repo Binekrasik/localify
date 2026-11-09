@@ -3,15 +3,30 @@ import { Manager } from '../Manager';
 import type { Track } from '../track/Track';
 import { bus, updateManager } from '../state/Managers';
 
+function formatTime(totalSeconds: number): string {
+    const safeSeconds = Number.isFinite(totalSeconds) ? Math.max(totalSeconds, 0) : 0
+    const minutes = Math.floor(safeSeconds / 60)
+    const seconds = Math.floor(safeSeconds % 60).toString().padStart(2, '0')
+
+    return `${minutes}:${seconds}`
+}
+
 export class PlayerManager extends Manager {
     isPlaying = false
     playOnNextTrackLoad = true
     #lyricsSynced = true
+    #lastProgress = 0
     #progressTimeLabel = sqs('#player-label-progress .currentTime')
+    #endTimeLabel = sqs('#player-label-progress .endTime')
+    #progressBar = sqs('#player-progress-bar')
+    #nowPlaying = sqs('#player-now-playing')
+    #coverImage = sqs<HTMLImageElement>('#player-cover')
+    #titleLabel = sqs('#player-title')
+    #artistLabel = sqs('#player-artist')
 
     controls = {
         playButton: sqs<HTMLButtonElement>('#player-button-play'),
-        progressSlider: sqs<HTMLButtonElement>('#player-slider-progress'),
+        progressSlider: sqs<HTMLInputElement>('#player-slider-progress'),
         volumeSlider: sqs<HTMLInputElement>('#player-slider-volume'),
         syncButton: sqs<HTMLButtonElement>('#player-button-sync'),
         playNextButton: sqs<HTMLButtonElement>('#player-button-play-next'),
@@ -31,6 +46,9 @@ export class PlayerManager extends Manager {
             this.LoadTrack(track, play)
         })
 
+        bus.on('track:loaded', ({ track }) => this.#showNowPlaying(track))
+        bus.on('track:unloaded', () => this.#showNowPlaying(null))
+
         bus.on('lyrics:synced', () => {
             this.#lyricsSynced = true
             this.controls.syncButton.disabled = true
@@ -46,10 +64,7 @@ export class PlayerManager extends Manager {
         this.audioElement.addEventListener('loadeddata', () => {
             this.SetControlsEnabled(true)
 
-            const minutes = Math.floor(this.audioElement.duration / 60)
-            const seconds = Math.floor(this.audioElement.duration % 60).toString().padStart(2, '0')
-
-            sqs('#player-label-progress .endTime').innerText = `${minutes}:${seconds}`
+            this.#endTimeLabel.textContent = formatTime(this.audioElement.duration)
 
             if (this.playOnNextTrackLoad) {
                 this.audioElement.play()
@@ -126,11 +141,17 @@ export class PlayerManager extends Manager {
     }
 
     SetVolume = (volume: number = parseFloat(this.controls.volumeSlider.value)) => {
-        this.audioElement.volume = Math.min(Math.max(volume, 0), 100) / 100
+        const clampedVolume = Math.min(Math.max(volume, 0), 100)
+
+        this.audioElement.volume = clampedVolume / 100
+        this.controls.volumeSlider.style.setProperty('--volume', `${clampedVolume}%`)
     }
 
     UpdatePlayButtonState() {
-        this.controls.playButton.innerText = this.audioElement.paused ? '▶' : '⏸'
+        const { paused } = this.audioElement
+
+        this.controls.playButton.dataset.playing = String(!paused)
+        this.controls.playButton.setAttribute('aria-label', paused ? 'Play' : 'Pause')
     }
 
     SetControlsEnabled(enabled?: boolean) {
@@ -174,18 +195,34 @@ export class PlayerManager extends Manager {
             URL.revokeObjectURL(oldSrc)
         this.audioElement.load()
         this.SetControlsEnabled(false)
-        sqs('#player-label-progress .endTime').innerText = '0:00'
+        this.#endTimeLabel.textContent = '0:00'
         bus.emit('track:unloaded', {})
     }
 
     UpdateProgressIndicators() {
-        const progress = (this.audioElement.currentTime / this.audioElement.duration) * 100
+        const { currentTime, duration } = this.audioElement
+        const ratio = Number.isFinite(duration) && duration > 0 ? currentTime / duration : 0
+        const progress = Math.min(Math.max(ratio * 100, 0), 100)
+
+        if (progress === this.#lastProgress) return
+        this.#lastProgress = progress
+
         this.controls.progressSlider.value = `${progress}`
+        this.#progressBar.style.setProperty('--progress', `${progress}%`)
+        this.#progressTimeLabel.textContent = formatTime(currentTime)
+    }
 
-        const time = (progress / 100) * this.audioElement.duration
-        const minutes = Math.floor(time / 60) || '0'
-        const seconds = Math.floor(time % 60) || '00'
+    #showNowPlaying(track: Track | null) {
+        this.#titleLabel.textContent = track?.title ?? ''
+        this.#artistLabel.textContent = track?.artist ?? ''
+        this.#nowPlaying.dataset.empty = String(!track)
 
-        this.#progressTimeLabel.innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`
+        if (track?.coverImage) {
+            this.#coverImage.src = track.coverImage
+            this.#coverImage.hidden = false
+        } else {
+            this.#coverImage.removeAttribute('src')
+            this.#coverImage.hidden = true
+        }
     }
 }

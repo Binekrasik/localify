@@ -1,9 +1,16 @@
 @use './colors.scss' as colors;
 
+$-buttonFeedback: .3s cubic-bezier(0, 1, .3, 1);
+
+// One period of the remaining-time wave. The path runs past both tile edges so the stroke joins seamlessly.
+$-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='14' viewBox='0 0 20 14'%3E%3Cpath d='M-10 7Q-5 10 0 7Q5 4 10 7Q15 10 20 7Q25 4 30 7' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E");
+
 #app[data-zen="true"] {
     #player[data-collapsable="true"] {
-        transform: translateY(calc(70px));
+        transform: translateY(70px);
         position: fixed;
+        left: 0;
+        bottom: 0;
 
         &:hover {
             transform: translateY(0);
@@ -12,108 +19,351 @@
 }
 
 #player {
-    // position: fixed;
-    // bottom: 0 !important;
-
     width: 100%;
-    height: fit-content;
-    padding: 20px 10px;
+    height: 80px;
+    padding: 0 15px;
 
-    display: flex;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
+    gap: 15px;
 
-    backdrop-filter: blur(20px);
-    border-top: 2px solid rgba(colors.$foreground, .1);
+    overflow: clip;
+    backdrop-filter: blur(100px);
+    border-top: 1px solid rgba(colors.$accent, .2);
     background: rgba(colors.$foreground, .05);
 
     transition: .25s cubic-bezier(0, .78, .17, 1);
 
-    label[data-type="file"],
     button {
-        border: none;
-        color: colors.$foreground;
-        font-size: 15px;
-
-        padding: .5rem 1rem;
-
-        height: fit-content;
-        width: fit-content;
-
-        transition: .3s cubic-bezier(0, 1, 0.3, 1);
-
-        background: rgba(colors.$foreground, .1);
-
-        &:hover {
-            background: rgba(colors.$foreground, .2);
-        }
-
-        &:active {
-            background: rgba(colors.$foreground, .1);
-        }
-    }
-
-    button[disabled] {
-        opacity: .5;
-
-        &:hover {
-            background: rgba(colors.$foreground, .1);
-        }
-
-        &:active {
-            background: rgba(colors.$foreground, .1);
-        }
-    }
-
-    input[type="file"] {
-        display: none;
-    }
-
-    .queueControls, .controls {
-        display: flex;
-        height: fit-content;
-
-        & > * {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        
-            min-height: 40px;
-            width: fit-content;
-        }
-    }
-
-    .sliders {
-        gap: 1rem;
-        margin: 0 2rem;
+        flex: none;
         display: flex;
         align-items: center;
+        justify-content: center;
 
-        #player-slider-progress {
-            width: 20rem;
-            margin: 0 0;
+        padding: 0;
+        border: none;
+        border-radius: 5px;
+        background: transparent;
+
+        transition: $-buttonFeedback;
+
+        &:hover:not(:disabled) {
+            background: rgba(colors.$accent, .12);
         }
 
-        #player-slider-volume {
-            width: 5rem;
+        &:active:not(:disabled) {
+            background: rgba(colors.$accent, .22);
         }
 
-        #button-newline {
-            bottom: 20px;
-            right: 20px;
+        &:focus-visible {
+            outline: 2px solid colors.$accent;
+            outline-offset: 1px;
         }
 
-        #player-label-progress,
-        #player-label-volume {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            line-height: 100%;
+        img {
+            display: block;
+            pointer-events: none;
+        }
+    }
 
-            p {
-                margin: 0 0 5px;
+    .nowPlaying {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        min-width: 0;
 
+        &[data-empty="true"] {
+            visibility: hidden;
+        }
+
+        .cover {
+            flex: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 5px;
+            overflow: hidden;
+            background: rgba(colors.$accent, .2);
+
+            img {
+                display: block;
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+
+                &[hidden] {
+                    display: none;
+                }
             }
         }
+
+        .info {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 7px;
+            min-width: 0;
+        }
+
+        .title,
+        .artist {
+            // The trimmed box ends at the baseline, so the padding keeps descenders inside the ellipsis clip.
+            margin-block: -.35em;
+            padding-block: .35em;
+
+            font-weight: 600;
+            line-height: normal;
+            text-box-trim: trim-both;
+            text-box-edge: cap alphabetic;
+
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .title {
+            font-size: 18px;
+            color: colors.$foreground;
+        }
+
+        .artist {
+            font-size: 14px;
+            color: rgba(colors.$foreground, .5);
+        }
+    }
+
+    .transport {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .controls {
+        display: flex;
+        gap: 15px;
+
+        button {
+            width: 40px;
+            height: 40px;
+        }
+    }
+
+    #player-button-play {
+        .iconPause {
+            display: none;
+        }
+
+        &[data-playing="true"] {
+            .iconPlay {
+                display: none;
+            }
+
+            .iconPause {
+                display: block;
+            }
+        }
+    }
+
+    .progress {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+
+        transition: opacity $-buttonFeedback;
+
+        &:has(#player-slider-progress:disabled) {
+            opacity: .4;
+        }
+
+        .time {
+            flex: none;
+            width: 30px;
+
+            font-family: 'Inter';
+            font-weight: 600;
+            font-size: 14px;
+            line-height: normal;
+            white-space: nowrap;
+            color: colors.$foreground;
+        }
+    }
+
+    .progressBar {
+        --progress: 0%;
+
+        position: relative;
+        flex: none;
+        width: 340px;
+        height: 14px;
+
+        &:has(input:focus-visible) {
+            border-radius: 3px;
+            outline: 2px solid colors.$accent;
+            outline-offset: 4px;
+        }
+
+        .remaining,
+        .elapsed,
+        .handle {
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .remaining {
+            top: 0;
+            bottom: 0;
+            left: var(--progress);
+            right: 0;
+
+            background: linear-gradient(90deg, rgba(colors.$accent, .75), rgba(colors.$accent, .25));
+            mask: $-waveTile left center / 20px 14px repeat-x;
+        }
+
+        .elapsed {
+            top: 5.5px;
+            left: -1.5px;
+            width: calc(var(--progress) + 1.5px);
+            height: 3px;
+
+            border-radius: 1.5px;
+            background: colors.$accent;
+        }
+
+        .handle {
+            top: -1.5px;
+            left: var(--progress);
+            width: 3px;
+            height: 17px;
+            margin-left: -1.5px;
+
+            border-radius: 1.5px;
+            background: colors.$accent;
+        }
+
+        // The thumb is as wide as the handle and the input overhangs by half of it, so pointer positions map 1:1.
+        input {
+            position: absolute;
+            top: -5px;
+            left: -1.5px;
+            width: calc(100% + 3px);
+            height: 24px;
+            margin: 0;
+
+            appearance: none;
+            background: none;
+            opacity: 0;
+
+            &::-webkit-slider-thumb {
+                appearance: none;
+                width: 3px;
+                height: 24px;
+            }
+
+            &::-moz-range-thumb {
+                width: 3px;
+                height: 24px;
+                border: 0;
+            }
+        }
+    }
+
+    .utilities {
+        justify-self: end;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        button {
+            width: 24px;
+            height: 24px;
+
+            &:disabled {
+                opacity: .4;
+            }
+        }
+    }
+
+    #player-label-volume {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: 6px;
+
+        transition: opacity $-buttonFeedback;
+
+        &:has(input:disabled) {
+            opacity: .4;
+        }
+
+        img {
+            display: block;
+        }
+    }
+
+    #player-slider-volume {
+        --volume: 50%;
+
+        width: 64px;
+        height: 24px;
+        margin: 0;
+
+        appearance: none;
+        background: none;
+
+        &:focus-visible {
+            border-radius: 3px;
+            outline: 2px solid colors.$accent;
+            outline-offset: 2px;
+        }
+
+        &::-webkit-slider-runnable-track {
+            height: 3px;
+            border-radius: 1.5px;
+            background: linear-gradient(90deg, colors.$accent var(--volume), rgba(colors.$accent, .25) var(--volume));
+        }
+
+        &::-moz-range-track {
+            height: 3px;
+            border-radius: 1.5px;
+            background: linear-gradient(90deg, colors.$accent var(--volume), rgba(colors.$accent, .25) var(--volume));
+        }
+
+        &::-webkit-slider-thumb {
+            appearance: none;
+            width: 3px;
+            height: 17px;
+            margin-top: -7px;
+            border-radius: 1.5px;
+            background: colors.$accent;
+        }
+
+        &::-moz-range-thumb {
+            width: 3px;
+            height: 17px;
+            border: 0;
+            border-radius: 1.5px;
+            background: colors.$accent;
+        }
+    }
+}
+
+@media (max-width: 940px) {
+    #player #player-label-volume img {
+        display: none;
+    }
+}
+
+@media (max-width: 870px) {
+    #player .progressBar {
+        width: 180px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #player,
+    #player * {
+        animation: none !important;
+        transition: none !important;
     }
 }

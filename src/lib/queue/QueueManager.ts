@@ -8,6 +8,7 @@ import { createElement } from '../domUtils'
 import type { ContextMenuEntry } from '../interaction/ContextMenuEntry'
 import { QueueInteraction } from './QueueInteraction'
 import { queueMotion, reducedQueueMotion } from './QueueMotion'
+import { initQueueCollapse } from './QueueCollapse'
 
 interface ParseResult {
     type: 'parse-result'
@@ -36,6 +37,7 @@ export class QueueManager extends Manager {
         this.#initHooks()
         this.#initBusListeners()
         this.#interaction.Initialize()
+        initQueueCollapse()
         reducedQueueMotion.addEventListener('change', () => {
             if (!reducedQueueMotion.matches) return
             for (const animation of this.#rowMoves.values()) animation.finish()
@@ -59,6 +61,13 @@ export class QueueManager extends Manager {
             this.ProcessAudioAndLyricsFiles(filesArray)
 
             this.#addToQueueInput.value = ''
+        })
+
+        sqs('#queueFooter label[data-type="file"]').addEventListener('keydown', event => {
+            const { key, repeat } = event as KeyboardEvent
+            if (key !== 'Enter' && key !== ' ') return
+            event.preventDefault()
+            if (!repeat) this.#addToQueueInput.click()
         })
 
         new MutationObserver(() => {
@@ -217,8 +226,8 @@ export class QueueManager extends Manager {
                     <span class="queuePinIndicator" role="img" aria-label="Pinned" title="Pinned"></span>
                 </div>
                 <p class="trackDetails" data-loaded="${Boolean(track.lyrics)}">
-                    <span class="format">${track.format}</span>
                     <span class="artist">${track.artist}</span>
+                    <span class="format">${track.format}</span>
                 </p>
             </div>
         `

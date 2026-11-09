@@ -22,49 +22,95 @@
             </div>
 
             <div id="queueContainer">
+                <header id="queueHeader">
+                    <h1>Queue</h1>
+                    <button id="queue-button-collapse" type="button" aria-label="Collapse queue" aria-pressed="false" title="Collapse queue">
+                        <img class="iconCollapse" src="/assets/icons/right_panel_close.svg" width="24" height="24" alt="" />
+                        <img class="iconExpand" src="/assets/icons/right_panel_open.svg" width="24" height="24" alt="" />
+                    </button>
+                </header>
+
                 <div id="queue">
-                    <h1><span>// </span>Queue</h1>
                     <h2 class="queueEmptyIndicator">I don't see anything... Oh wait- the queue is empty</h2>
                 </div>
-                <div id="loadingBar" data-hidden="true">
-                    <span class="label"></span>
-                    <div class="track"><div class="fill"></div></div>
-                </div>
+
+                <footer id="queueFooter">
+                    <div id="loadingBar" data-hidden="true">
+                        <span class="label"></span>
+                        <div class="track"><div class="fill"></div></div>
+                    </div>
+
+                    <div class="queueActions">
+                        <button id="player-button-shuffle" type="button" aria-label="Shuffle queue" title="Shuffle queue">
+                            <img src="/assets/icons/shuffle.svg" width="24" height="24" alt="" />
+                        </button>
+                        <label data-type="file" tabindex="0" role="button" aria-label="Add files to queue" title="Add files to queue">
+                            <img src="/assets/icons/playlist_add.svg" width="24" height="24" alt="" />
+                            <input type="file" accept=".lrc,.mp3,.wav,.ogg,.flac,.m4a,.opus" id="player-add-to-queue" multiple />
+                        </label>
+                    </div>
+                </footer>
             </div>
         </div>
 
         <div id="player">
             <audio preload="auto" id="audioPlayer"></audio>
 
-            <!-- player controls -->
-            <div class="controls">
-                <button id="player-button-shuffle">shff</button>
-                <button id="player-button-sync">sync</button>
-                <button id="player-button-mark-loop-start">lsta</button>
-                <button id="player-button-clear-loop">lclr</button>
-                <button id="player-button-mark-loop-end">lend</button>
-                <button id="player-button-play">▶</button>
+            <!-- currently playing -->
+            <div class="nowPlaying" id="player-now-playing" data-empty="true">
+                <div class="cover"><img id="player-cover" alt="" hidden /></div>
+                <div class="info">
+                    <p class="title" id="player-title"></p>
+                    <p class="artist" id="player-artist"></p>
+                </div>
             </div>
 
-            <div class="sliders">
-                <label id="player-label-progress">
-                    <p><span class="currentTime">0:00</span> - <span class="endTime">0:00</span></p>
-                    <input id="player-slider-progress" type="range" min="0" max="100" value="0" />
-                </label>
+            <!-- transport -->
+            <div class="transport">
+                <div class="controls">
+                    <button id="player-button-previous" type="button" aria-label="Previous track" disabled>
+                        <img src="/assets/icons/skip_previous.svg" width="40" height="40" alt="" />
+                    </button>
+                    <button id="player-button-play" type="button" aria-label="Play" data-playing="false">
+                        <img class="iconPlay" src="/assets/icons/play_arrow.svg" width="40" height="40" alt="" />
+                        <img class="iconPause" src="/assets/icons/pause.svg" width="40" height="40" alt="" />
+                    </button>
+                    <button id="player-button-play-next" type="button" aria-label="Next track">
+                        <img src="/assets/icons/skip_next.svg" width="40" height="40" alt="" />
+                    </button>
+                </div>
 
-                <label id="player-label-progress">
-                    <p>Volume</p>
-                    <input id="player-slider-volume" type="range" min="0" max="100" value="50" />
-                </label>
+                <div class="progress" id="player-label-progress">
+                    <span class="time currentTime">0:00</span>
+                    <div class="progressBar" id="player-progress-bar">
+                        <div class="remaining"></div>
+                        <div class="elapsed"></div>
+                        <div class="handle"></div>
+                        <input id="player-slider-progress" type="range" min="0" max="100" step="any" value="0" aria-label="Seek" />
+                    </div>
+                    <span class="time endTime">0:00</span>
+                </div>
             </div>
 
-            <div class="queueControls">
-                <label data-type="file">
-                    qadd
-                    <input type="file" accept=".lrc,.mp3,.wav,.ogg,.flac,.m4a,.opus" id="player-add-to-queue" multiple />
-                </label>
+            <!-- sync, loop and volume -->
+            <div class="utilities">
+                <button id="player-button-sync" type="button" title="Sync lyrics" aria-label="Sync lyrics">
+                    <img src="/assets/icons/sync.svg" width="24" height="24" alt="" />
+                </button>
+                <button id="player-button-mark-loop-start" type="button" title="Set loop start" aria-label="Set loop start">
+                    <img src="/assets/icons/start.svg" width="24" height="24" alt="" />
+                </button>
+                <button id="player-button-clear-loop" type="button" title="Clear loop" aria-label="Clear loop">
+                    <img src="/assets/icons/close.svg" width="24" height="24" alt="" />
+                </button>
+                <button id="player-button-mark-loop-end" type="button" title="Set loop end" aria-label="Set loop end">
+                    <img src="/assets/icons/keyboard_tab.svg" width="24" height="24" alt="" />
+                </button>
 
-                <button id="player-button-play-next">next</button>
+                <label id="player-label-volume" title="Volume">
+                    <img src="/assets/icons/volume_up.svg" width="24" height="24" alt="" />
+                    <input id="player-slider-volume" type="range" min="0" max="100" value="50" aria-label="Volume" />
+                </label>
             </div>
         </div>
     </div>
