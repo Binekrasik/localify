@@ -44,6 +44,32 @@
     }
 }
 
+@property --queue-flood-reach {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 150%;
+}
+
+@keyframes animationQueueRowFloodSpread {
+    from {
+        --queue-flood-reach: 0%;
+    }
+
+    to {
+        --queue-flood-reach: 150%;
+    }
+}
+
+@keyframes animationQueueRowFloodBloom {
+    from {
+        background-color: colors.accent(0.45);
+    }
+
+    to {
+        background-color: colors.accent(0);
+    }
+}
+
 $queueWidth: 384px;
 $queueHeaderHeight: 49px;
 $queueFooterHeight: 65px;
@@ -53,12 +79,22 @@ $queuePeek: 118px;
 $queuePeekTextOffset: 20px;
 $queueListPadding: 20px;
 $queueRowPadding: 15px;
-$queueRowPlayingPadding: 21px;
+$queueRowPlayingShift: 6px;
 $queueActiveStroke: 0.1;
+$queueBorderColor: colors.accent(0.2);
+$queueHistoryOpacity: 0.5;
+$queueHistoryDashLength: 10px;
 
 $queueCollapseMotion: 0.3s cubic-bezier(0, 0.78, 0.17, 1);
 $queueButtonFeedback: 0.3s cubic-bezier(0, 1, 0.3, 1);
 $queueRowMotion: cubic-bezier(0.63, 0.234, 0, 1);
+$queueExpoOut: cubic-bezier(0, 0.78, 0.17, 1);
+$queueHoverMotion: 1s cubic-bezier(0, 1, 0.3, 1);
+// Matches the selection highlight's fade-in in QueueInteraction.
+$queueSelectionFade: 0.18s;
+$queueRowContentShift: translate 0.2s $queueExpoOut;
+// How far the playing row's light has spread, and where the mask's soft leading edge begins behind it.
+$queueFloodEdge: 40%;
 
 // Trimming text to its cap height leaves descenders outside the box, so clipping
 // ancestors reserve room for them without changing the layout.
@@ -86,7 +122,7 @@ $queueDescenderRoom: 6px;
     border: none;
     border-radius: 5px;
     background: transparent;
-    cursor: pointer;
+    cursor: default;
 
     transition: background-color $queueButtonFeedback;
 
@@ -120,8 +156,7 @@ $queueDescenderRoom: 6px;
 .queueDropIndicator {
     height: 3px;
     border-radius: 2px;
-    background: colors.accent(0.3);
-    box-shadow: 0 0 6px rgba(colors.$background, 0.6);
+    background: $queueBorderColor;
     transition: top 0.15s cubic-bezier(0, 0.78, 0.17, 1);
 }
 
@@ -168,10 +203,13 @@ $queueDescenderRoom: 6px;
             }
 
             #queue .queueItem {
-                padding-left: $queueRowPadding;
+                .trackInfo,
+                img {
+                    translate: none;
+                }
 
                 &::before {
-                    background-size: 100% 0, 100% 0, 0 100%, 100% 100%;
+                    background-size: 100% 0, 100% 0, 0 calc(100% - 4px), 100% 100%;
                 }
 
                 img {
@@ -190,7 +228,7 @@ $queueDescenderRoom: 6px;
 
     width: $queueWidth;
 
-    border-left: 1px solid colors.accent(0.2);
+    border-left: 1px solid $queueBorderColor;
 
     overflow: clip;
     isolation: isolate;
@@ -208,11 +246,6 @@ $queueDescenderRoom: 6px;
 
         background: rgba(colors.$foreground, 0.05);
         backdrop-filter: blur(100px);
-    }
-
-    &:has(#queue:focus-visible) {
-        outline: 2px solid colors.accent(0.5);
-        outline-offset: -2px;
     }
 
     .queueEmptyIndicator {
@@ -253,7 +286,7 @@ $queueDescenderRoom: 6px;
         z-index: 2;
 
         background: rgba(colors.$foreground, 0.01);
-        backdrop-filter: blur(10px);
+        backdrop-filter: blur(30px);
     }
 
     #queueHeader {
@@ -354,6 +387,9 @@ $queueDescenderRoom: 6px;
         scroll-padding-top: $queueHeaderHeight;
         scroll-padding-bottom: $queueFooterHeight;
 
+        // Firefox's scroll anchoring follows the rows' move animations and fights the scroll position set for them.
+        overflow-anchor: none;
+
         gap: 10px;
         user-select: none;
         outline: none;
@@ -387,6 +423,34 @@ $queueDescenderRoom: 6px;
             }
         }
 
+        .queueHistoryDivider {
+            flex-shrink: 0;
+            height: 2px;
+
+            // Cancels the list's padding so the line spans the whole sidebar.
+            margin-inline: -$queueListPadding;
+
+            // With the list's gaps, this keeps a list padding between the line and the rows, which
+            // leaves the line under the header when the current track is at the top. The extra
+            // pixel absorbs the rounding of fractional row offsets.
+            margin-block: $queueListPadding - 10px + 1px;
+            background: repeating-linear-gradient(
+                90deg,
+                $queueBorderColor 0 $queueHistoryDashLength,
+                transparent $queueHistoryDashLength ($queueHistoryDashLength * 2)
+            );
+            pointer-events: none;
+        }
+
+        // Lets the list scroll far enough to bring the current track to the top.
+        .queueScrollSpacer {
+            flex-shrink: 0;
+            order: 2147483647;
+
+            // Cancels the list's gap so an empty spacer adds no height.
+            margin-top: -10px;
+        }
+
         .queueItem {
             padding: 10px $queueRowPadding;
             display: flex;
@@ -403,7 +467,6 @@ $queueDescenderRoom: 6px;
 
             transition:
                 background-color 0.3s $queueRowMotion,
-                padding-left 0.3s $queueRowMotion,
                 opacity 0.3s $queueRowMotion,
                 border-color 0.18s $queueRowMotion;
             animation: 0.4s $queueRowMotion animationQueueItemSlideIn;
@@ -431,9 +494,15 @@ $queueDescenderRoom: 6px;
                         colors.accent(0.1)
                     ),
                     linear-gradient(90deg, colors.accent(0.2), colors.accent(0));
-                background-position: left top, left bottom, left top, left top;
-                background-size: 100% 2px, 100% 2px, 2px 100%, 100% 100%;
+                // The left indicator stops short of the top and bottom strokes so the corners aren't painted twice.
+                background-position: left top, left bottom, left 2px, left top;
+                background-size: 100% 2px, 100% 2px, 2px calc(100% - 4px), 100% 100%;
                 background-repeat: no-repeat;
+                mask-image: linear-gradient(
+                    90deg,
+                    #000 calc(var(--queue-flood-reach) - #{$queueFloodEdge}),
+                    transparent var(--queue-flood-reach)
+                );
 
                 transition:
                     opacity 0.3s $queueRowMotion,
@@ -449,26 +518,40 @@ $queueDescenderRoom: 6px;
                 border: 2px solid colors.accent(0.25);
                 opacity: 0;
                 clip-path: var(--queue-hover-clip, none);
-                transition: opacity var(--queue-hover-duration, 0.18s) $queueRowMotion;
+                transition: opacity $queueHoverMotion;
+                transition-duration: var(--queue-hover-duration, 1s);
             }
 
             &:hover::after {
                 opacity: 1;
             }
 
+            // The hover border holds until the selection highlight has faded in over it.
             &[data-selected="true"]::after {
                 opacity: 0;
+                transition-delay: $queueSelectionFade;
+                transition-duration: $queueSelectionFade;
+                transition-timing-function: $queueRowMotion;
             }
 
             &[data-playing="true"] {
-                padding-left: $queueRowPlayingPadding;
+                .trackInfo,
+                img {
+                    translate: $queueRowPlayingShift 0;
+                }
 
                 &::before {
                     opacity: 1;
+                    animation:
+                        0.8s $queueExpoOut animationQueueRowFloodSpread,
+                        1.2s $queueExpoOut animationQueueRowFloodBloom;
+                    transition:
+                        opacity $queueHoverMotion,
+                        background-size $queueCollapseMotion;
                 }
 
-                &::after {
-                    border-left-color: transparent;
+                &:hover::before {
+                    opacity: 0;
                 }
             }
 
@@ -486,8 +569,44 @@ $queueDescenderRoom: 6px;
                 opacity: 0.65;
             }
 
+            &[data-history="true"] {
+                opacity: $queueHistoryOpacity;
+
+                &[data-dragging="true"] {
+                    opacity: $queueHistoryOpacity * 0.65;
+                }
+            }
+
             &[data-removed="true"] {
                 pointer-events: none;
+            }
+
+            .queuePlayButton {
+                @include queueIconControl;
+
+                flex-shrink: 0;
+                opacity: 0;
+                transition:
+                    background-color $queueButtonFeedback,
+                    opacity 0.3s $queueExpoOut;
+
+                .iconPause {
+                    display: none;
+                }
+
+                &[data-playing="true"] {
+                    .iconPlay {
+                        display: none;
+                    }
+
+                    .iconPause {
+                        display: block;
+                    }
+                }
+            }
+
+            &:hover .queuePlayButton {
+                opacity: 1;
             }
 
             .queuePinIndicator {
@@ -569,7 +688,9 @@ $queueDescenderRoom: 6px;
                 height: 50px;
                 flex-shrink: 0;
                 object-fit: cover;
-                transition: margin-right $queueCollapseMotion;
+                transition:
+                    margin-right $queueCollapseMotion,
+                    $queueRowContentShift;
             }
 
             .trackInfo {
@@ -582,6 +703,7 @@ $queueDescenderRoom: 6px;
                 min-width: 0;
 
                 gap: 7px;
+                transition: $queueRowContentShift;
 
                 p {
                     text-overflow: ellipsis;
@@ -620,21 +742,6 @@ $queueDescenderRoom: 6px;
                     align-items: center;
                     gap: 6px;
                     max-width: 100%;
-
-                    .format {
-                        flex-shrink: 0;
-                        font-size: 10px;
-                        font-weight: 600;
-                        text-transform: uppercase;
-                        color: colors.accent(0.6);
-
-                        background: colors.accent(0.08);
-                        border-radius: 3px;
-
-                        padding: 1px 4px;
-                        // The tag is taller than the artist's cap height and must not grow the row.
-                        margin-block: -4px;
-                    }
 
                     .artist {
                         @include queueTrimmedText;

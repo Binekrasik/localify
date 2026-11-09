@@ -9,6 +9,8 @@ interface EventMap {
     'track:unloaded': Record<string, never>
     'queue:play-request': { track: Track; play: boolean }
     'queue:next': Record<string, never>
+    'queue:previous': Record<string, never>
+    'queue:history-changed': { hasHistory: boolean }
     'queue:shuffle': Record<string, never>
     'lyrics:synced': Record<string, never>
     'lyrics:unsynced': Record<string, never>

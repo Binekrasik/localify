@@ -30,6 +30,7 @@ export class PlayerManager extends Manager {
         volumeSlider: sqs<HTMLInputElement>('#player-slider-volume'),
         syncButton: sqs<HTMLButtonElement>('#player-button-sync'),
         playNextButton: sqs<HTMLButtonElement>('#player-button-play-next'),
+        previousButton: sqs<HTMLButtonElement>('#player-button-previous'),
         shuffleQueue: sqs<HTMLButtonElement>('#player-button-shuffle'),
     }
 
@@ -44,6 +45,10 @@ export class PlayerManager extends Manager {
     #initBusListeners() {
         bus.on('queue:play-request', ({ track, play }) => {
             this.LoadTrack(track, play)
+        })
+
+        bus.on('queue:history-changed', ({ hasHistory }) => {
+            this.controls.previousButton.disabled = !hasHistory
         })
 
         bus.on('track:loaded', ({ track }) => this.#showNowPlaying(track))
@@ -111,16 +116,14 @@ export class PlayerManager extends Manager {
             bus.emit('lyrics:sync-request', {})
         })
 
-        this.controls.playButton.addEventListener('click', () => {
-            if (this.audioElement.paused) {
-                if (this.audioElement.readyState === 0)
-                    bus.emit('queue:next', {})
-                else this.audioElement.play()
-            } else this.audioElement.pause()
-        })
+        this.controls.playButton.addEventListener('click', () => this.TogglePlayback())
 
         this.controls.playNextButton.addEventListener('click', () => {
             bus.emit('queue:next', {})
+        })
+
+        this.controls.previousButton.addEventListener('click', () => {
+            bus.emit('queue:previous', {})
         })
 
         this.controls.shuffleQueue.addEventListener('click', () => {
@@ -145,6 +148,14 @@ export class PlayerManager extends Manager {
 
         this.audioElement.volume = clampedVolume / 100
         this.controls.volumeSlider.style.setProperty('--volume', `${clampedVolume}%`)
+    }
+
+    TogglePlayback() {
+        if (this.audioElement.paused) {
+            if (this.audioElement.readyState === 0)
+                bus.emit('queue:next', {})
+            else this.audioElement.play()
+        } else this.audioElement.pause()
     }
 
     UpdatePlayButtonState() {

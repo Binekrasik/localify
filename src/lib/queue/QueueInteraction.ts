@@ -1,3 +1,4 @@
+import sqs from "../shortQuerySelector";
 import type { QueueManager } from "./QueueManager";
 import type { QueueTrackEntry } from "./QueueTrackEntry";
 import { queueMotion, reducedQueueMotion } from "./QueueMotion";
@@ -48,6 +49,7 @@ type QueueGesture = GestureStart &
               kind: "dragging";
               entries: QueueTrackEntry[];
               beforeEntry: QueueTrackEntry | null;
+              intoHistory: boolean;
               hasMoved: boolean;
               validDrop: boolean;
           }
@@ -202,7 +204,8 @@ export class QueueInteraction {
             this.#element.releasePointerCapture(gesture.pointerId);
     }
 
-    #showOverlay(element: HTMLElement, parent: HTMLElement = document.body) {
+    /** Overlays default to #app, which defines the accent colour they paint with. */
+    #showOverlay(element: HTMLElement, parent: HTMLElement = sqs<HTMLElement>("#app")) {
         if (element.isConnected && element.dataset.exiting !== "true") return;
         const opacity = element.isConnected ? getComputedStyle(element).opacity : "0";
         this.#overlayAnimations.get(element)?.cancel();
@@ -554,7 +557,8 @@ export class QueueInteraction {
             event.button !== 0 ||
             !event.isPrimary ||
             event.pointerType === "touch" ||
-            this.#gesture
+            this.#gesture ||
+            (event.target instanceof Element && event.target.closest(".queuePlayButton"))
         )
             return;
         const bounds = this.#element.getBoundingClientRect();
@@ -589,7 +593,7 @@ export class QueueInteraction {
         const startedInSelectionGap = Boolean(selectedGroup);
         if (selectedGroup)
             entry = [...selectedGroup.entries].find(
-                (entry) => entry.order >= this.#queue.GetFirstSafeQueueIndex(),
+                (entry) => !entry.track.isPlaying,
             ) ?? selectedGroup.entries.values().next().value;
         const additive = event.ctrlKey || event.metaKey;
         const initialSelection = new Set(this.#selected);
@@ -619,12 +623,11 @@ export class QueueInteraction {
         this.#gesture = gesture;
         this.#element.focus({ preventScroll: true });
         this.#element.setPointerCapture(event.pointerId);
-        if (entry && entry.order >= this.#queue.GetFirstSafeQueueIndex()) {
+        if (entry && !entry.track.isPlaying) {
             this.#holdTimer = window.setTimeout(() => {
                 if (this.#gesture !== gesture) return;
                 const entries = this.SelectedEntries.filter(
-                    (entry) =>
-                        entry.order >= this.#queue.GetFirstSafeQueueIndex(),
+                    (entry) => !entry.track.isPlaying,
                 );
                 if (!entries.length) return;
                 this.#gesture = {
@@ -632,6 +635,7 @@ export class QueueInteraction {
                     kind: "dragging",
                     entries,
                     beforeEntry: null,
+                    intoHistory: false,
                     hasMoved: false,
                     validDrop: false,
                 };
@@ -708,7 +712,7 @@ export class QueueInteraction {
             gesture.hasMoved &&
             gesture.validDrop
         ) {
-            this.#queue.MoveTracksBefore(gesture.entries, gesture.beforeEntry);
+            this.#queue.MoveTracksBefore(gesture.entries, gesture.beforeEntry, gesture.intoHistory);
         }
     }
 
@@ -803,10 +807,15 @@ export class QueueInteraction {
             return;
         }
         const dragged = new Set(gesture.entries);
+        const divider = this.#queue.HistoryDividerBounds;
+        gesture.intoHistory =
+            divider !== undefined &&
+            gesture.pointer.y < divider.top + divider.height / 2;
         const remaining = this.#queue.queue.filter(
             (entry) =>
-                entry.order >= this.#queue.GetFirstSafeQueueIndex() &&
-                !dragged.has(entry),
+                !entry.track.isPlaying &&
+                !dragged.has(entry) &&
+                entry.order < this.#queue.HistoryLength === gesture.intoHistory,
         );
         gesture.beforeEntry =
             remaining.find((entry) => {
@@ -820,11 +829,19 @@ export class QueueInteraction {
             ?.track.domElement?.getBoundingClientRect();
         const firstDraggedRow =
             gesture.entries[0].track.domElement!.getBoundingClientRect();
+        // An empty upcoming section still sits below the current track or the divider.
+        const sectionTop = gesture.intoHistory
+            ? undefined
+            : (this.#queue.queue
+                  .find((entry) => entry.track.isPlaying)
+                  ?.track.domElement?.getBoundingClientRect() ?? divider);
         const markerY = beforeRow
             ? beforeRow.top - 5
             : lastRow
               ? lastRow.bottom + 5
-              : firstDraggedRow.top - 5;
+              : sectionTop
+                ? sectionTop.bottom + 5
+                : firstDraggedRow.top - 5;
         Object.assign(this.#dropIndicator.style, {
             left: `${firstDraggedRow.left}px`,
             width: `${firstDraggedRow.width}px`,
@@ -879,6 +896,10 @@ export class QueueInteraction {
                 this.CancelGesture();
                 this.#setSelection(selection);
             } else this.#setSelection([]);
+            event.preventDefault();
+        } else if (event.key === "Enter" && this.#focusedEntry) {
+            this.CancelGesture();
+            this.#queue.PlayOrToggleEntry(this.#focusedEntry);
             event.preventDefault();
         } else if (
             (event.ctrlKey || event.metaKey) &&

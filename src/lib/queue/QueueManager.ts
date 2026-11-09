@@ -24,9 +24,20 @@ interface ParseResult {
     error?: string
 }
 
+function createListDecoration(className: string) {
+    const element = document.createElement('div')
+    element.className = className
+    element.setAttribute('role', 'presentation')
+    return element
+}
+
 export class QueueManager extends Manager {
+    /** Every row in display order: played tracks, then the current track, then upcoming tracks. */
     queue: QueueTrackEntry[] = []
+    #historyLength = 0
     #queueListElement = sqs('#queue') as HTMLDivElement
+    #historyDivider = createListDecoration('queueHistoryDivider')
+    #scrollSpacer = createListDecoration('queueScrollSpacer')
     #interaction = new QueueInteraction(this.#queueListElement, this)
     #addToQueueInput = sqs('#player-add-to-queue') as HTMLInputElement
     #currentWorker: Worker | null = null
@@ -38,6 +49,8 @@ export class QueueManager extends Manager {
         this.#initBusListeners()
         this.#interaction.Initialize()
         initQueueCollapse()
+        this.#queueListElement.appendChild(this.#scrollSpacer)
+        new ResizeObserver(() => this.#syncScrollRoom()).observe(this.#queueListElement)
         reducedQueueMotion.addEventListener('change', () => {
             if (!reducedQueueMotion.matches) return
             for (const animation of this.#rowMoves.values()) animation.finish()
@@ -48,6 +61,9 @@ export class QueueManager extends Manager {
     #initBusListeners() {
         bus.on('playback:ended', () => this.PlayNextTrack())
         bus.on('queue:next', () => this.PlayNextTrack())
+        bus.on('queue:previous', () => this.PlayPreviousTrack())
+        bus.on('playback:play', () => this.#syncPlayButtons())
+        bus.on('playback:pause', () => this.#syncPlayButtons())
         bus.on('queue:shuffle', () => this.ShuffleQueue())
     }
 
@@ -227,10 +243,18 @@ export class QueueManager extends Manager {
                 </div>
                 <p class="trackDetails" data-loaded="${Boolean(track.lyrics)}">
                     <span class="artist">${track.artist}</span>
-                    <span class="format">${track.format}</span>
                 </p>
             </div>
+            <button class="queuePlayButton" type="button" tabindex="-1" aria-label="Play track" title="Play">
+                <span class="icon iconPlay" style="--icon: url('/assets/icons/play_arrow.svg')"></span>
+                <span class="icon iconPause" style="--icon: url('/assets/icons/pause.svg')"></span>
+            </button>
         `
+
+        const playButton = domTrackElement.querySelector('.queuePlayButton') as HTMLButtonElement
+        // The list owns keyboard focus, so a click must not move it onto the button.
+        playButton.addEventListener('mousedown', event => event.preventDefault())
+        playButton.addEventListener('click', () => this.PlayOrToggleEntry(trackEntry))
 
         domTrackElement.addEventListener('mousedown', event => {
             if (event.button != 2) return
@@ -241,12 +265,11 @@ export class QueueManager extends Manager {
         })
 
         trackEntry.track.domElement = domTrackElement
-        trackEntry.order = this.queue.length
-        domTrackElement.style.order = `${trackEntry.order}`
-        domTrackElement.setAttribute('data-order', `${trackEntry.order}`)
+        this.#placeRow(trackEntry, this.queue.length)
 
         this.#queueListElement.appendChild(domTrackElement)
         this.queue.push(trackEntry)
+        this.#syncScrollRoom()
         this.#interaction.TrackAdded()
     }
 
@@ -257,7 +280,7 @@ export class QueueManager extends Manager {
                 icon: createElement('img', { src: '/assets/icons/keyboard_double_arrow_up.svg' }),
                 text: createElement('p', {}, 'Move to top'),
                 onClick: _ => {
-                    this.SetTracksOrder(trackEntries, this.GetFirstSafeQueueIndex())
+                    this.#moveTracksToTop(trackEntries)
                 },
             },
             {
@@ -349,7 +372,7 @@ export class QueueManager extends Manager {
     }
 
     PlayCurrentTrack() {
-        const trackEntry = this.queue[0]
+        const trackEntry = this.queue[this.#historyLength]
         if (!trackEntry) return
 
         this.#setPlayingTrack(trackEntry)
@@ -362,44 +385,69 @@ export class QueueManager extends Manager {
             entry.track.isPlaying = entry === playingEntry
             entry.track.domElement?.setAttribute('data-playing', String(entry.track.isPlaying))
         }
+        this.#syncPlayButtons()
     }
 
-    SetTrackOrder(trackEntry: QueueTrackEntry, order: number) {
-        this.SetTracksOrder([trackEntry], order)
+    #syncPlayButtons() {
+        for (const entry of this.queue) {
+            const button = entry.track.domElement?.querySelector('.queuePlayButton')
+            if (!button) continue
+            const canPause = entry.track.isPlaying && Managers.PlayerManager.isPlaying
+            button.setAttribute('data-playing', String(canPause))
+            button.setAttribute('aria-label', canPause ? 'Pause track' : 'Play track')
+            button.setAttribute('title', canPause ? 'Pause' : 'Play')
+        }
     }
 
-    SetTracksOrder(trackEntries: readonly QueueTrackEntry[], order: number) {
-        if (!Number.isFinite(order)) return
-        const requested = new Set(trackEntries)
+    /** Reorders the played and upcoming rows; the current track stays between them. */
+    #rearrange(arrange: (history: QueueTrackEntry[], upcoming: QueueTrackEntry[]) => void) {
         const safeIndex = this.GetFirstSafeQueueIndex()
-        const moving = this.queue.filter((entry, index) => index >= safeIndex && requested.has(entry))
-        if (!moving.length) return
-        const movingSet = new Set(moving)
-        const remaining = this.queue.filter(entry => !movingSet.has(entry))
-        const insertionIndex = Math.max(safeIndex, Math.min(Math.trunc(order), remaining.length))
-        remaining.splice(insertionIndex, 0, ...moving)
-        this.queue = remaining
+        const history = this.queue.slice(0, this.#historyLength)
+        const current = this.queue.slice(this.#historyLength, safeIndex)
+        const upcoming = this.queue.slice(safeIndex)
+        arrange(history, upcoming)
+        this.queue = [...history, ...current, ...upcoming]
+        this.#historyLength = history.length
         this.SyncQueueChanges()
     }
 
-    MoveTracksBefore(trackEntries: readonly QueueTrackEntry[], beforeEntry: QueueTrackEntry | null) {
-        const moving = new Set(trackEntries)
-        const remaining = this.queue.filter((entry, index) => index < this.GetFirstSafeQueueIndex() || !moving.has(entry))
-        if (beforeEntry && !remaining.includes(beforeEntry)) return
-        this.SetTracksOrder(trackEntries, beforeEntry ? remaining.indexOf(beforeEntry) : remaining.length)
+    /** Moves each track to the top of its own section, history or upcoming. */
+    #moveTracksToTop(trackEntries: readonly QueueTrackEntry[]) {
+        const selected = new Set(trackEntries)
+        this.#rearrange((history, upcoming) => {
+            for (const section of [history, upcoming]) {
+                const moving = section.filter(entry => selected.has(entry))
+                const remaining = section.filter(entry => !selected.has(entry))
+                section.splice(0, section.length, ...moving, ...remaining)
+            }
+        })
+    }
+
+    MoveTracksBefore(trackEntries: readonly QueueTrackEntry[], beforeEntry: QueueTrackEntry | null, intoHistory: boolean) {
+        const requested = new Set(trackEntries)
+        this.#rearrange((history, upcoming) => {
+            const moving = [...history, ...upcoming].filter(entry => requested.has(entry))
+            for (const section of [history, upcoming])
+                section.splice(0, section.length, ...section.filter(entry => !requested.has(entry)))
+            const target = intoHistory ? history : upcoming
+            const index = beforeEntry ? target.indexOf(beforeEntry) : target.length
+            target.splice(index === -1 ? target.length : index, 0, ...moving)
+        })
     }
 
     #moveTracksByOne(trackEntries: readonly QueueTrackEntry[], direction: -1 | 1) {
         const selected = new Set(trackEntries)
-        const safeIndex = this.GetFirstSafeQueueIndex()
-        const start = direction === -1 ? safeIndex : this.queue.length - 1
-        for (let index = start; index >= safeIndex && index < this.queue.length; index -= direction) {
-            const neighbour = index + direction
-            if (neighbour < safeIndex || neighbour >= this.queue.length) continue
-            if (selected.has(this.queue[index]) && !selected.has(this.queue[neighbour]))
-                [this.queue[index], this.queue[neighbour]] = [this.queue[neighbour], this.queue[index]]
-        }
-        this.SyncQueueChanges()
+        this.#rearrange((history, upcoming) => {
+            for (const section of [history, upcoming]) {
+                const start = direction === -1 ? 0 : section.length - 1
+                for (let index = start; index >= 0 && index < section.length; index -= direction) {
+                    const neighbour = index + direction
+                    if (neighbour < 0 || neighbour >= section.length) continue
+                    if (selected.has(section[index]) && !selected.has(section[neighbour]))
+                        [section[index], section[neighbour]] = [section[neighbour], section[index]]
+                }
+            }
+        })
     }
 
     #getRowPositions() {
@@ -408,17 +456,86 @@ export class QueueManager extends Manager {
             const element = entry.track.domElement
             if (element) positions.set(element, element.getBoundingClientRect())
         }
+        if (this.#historyDivider.isConnected)
+            positions.set(this.#historyDivider, this.#historyDivider.getBoundingClientRect())
         return positions
     }
 
-    SyncQueueChanges(previousPositions = this.#getRowPositions()) {
+    /** Assigns a row its place in the list, leaving a slot for the history divider. */
+    #placeRow(entry: QueueTrackEntry, index: number) {
+        const element = entry.track.domElement!
+        entry.order = index
+        element.setAttribute('data-order', `${index}`)
+        element.setAttribute('data-history', String(index < this.#historyLength))
+        element.style.order = `${index < this.#historyLength ? index : index + 1}`
+    }
+
+    #syncHistoryDivider() {
+        const divider = this.#historyDivider
+        divider.style.order = `${this.#historyLength}`
+        const visible = this.#historyLength > 0
+        if (visible === divider.isConnected) return
+        if (!visible) {
+            divider.remove()
+            return
+        }
+        this.#queueListElement.appendChild(divider)
+        if (!reducedQueueMotion.matches) divider.animate([{ opacity: 0 }, { opacity: 1 }], queueMotion)
+    }
+
+    /** The scroll offset that puts the current row where the first row sits in an unscrolled list. */
+    #currentRowScrollTop() {
+        const row = this.queue[this.#historyLength]?.track.domElement
+        if (!row) return undefined
+        return row.offsetTop - parseFloat(getComputedStyle(this.#queueListElement).paddingTop)
+    }
+
+    /** Sizes the spacer so the list can scroll the current row to the top even with few rows below it. */
+    #syncScrollRoom() {
+        const list = this.#queueListElement
+        const target = this.#currentRowScrollTop()
+        const lastRow = this.queue.at(-1)?.track.domElement
+        let room = 0
+        if (target && lastRow) {
+            const contentBottom = lastRow.offsetTop + lastRow.offsetHeight + parseFloat(getComputedStyle(list).paddingBottom)
+            room = Math.max(0, target + list.clientHeight - contentBottom)
+        }
+        this.#scrollSpacer.style.height = `${room}px`
+    }
+
+    /** Fades a copy of the divider that just left the list, at the place it was last seen. */
+    #fadeRemovedHistoryDivider(previous: DOMRect | undefined) {
+        const divider = this.#historyDivider
+        if (!previous || divider.isConnected || reducedQueueMotion.matches) return
+        const bounds = this.#queueListElement.getBoundingClientRect()
+        const ghost = divider.cloneNode() as HTMLElement
+        Object.assign(ghost.style, {
+            position: 'absolute',
+            top: `${previous.top - bounds.top + this.#queueListElement.scrollTop}px`,
+            left: '0',
+            right: '0',
+            margin: '0',
+        })
+        this.#queueListElement.appendChild(ghost)
+        const animation = ghost.animate([{ opacity: 1 }, { opacity: 0 }], { ...queueMotion, fill: 'forwards' })
+        this.#rowRemovals.add(animation)
+        animation.onfinish = () => {
+            ghost.remove()
+            this.#rowRemovals.delete(animation)
+        }
+    }
+
+    SyncQueueChanges(previousPositions = this.#getRowPositions(), revealCurrentRow = false) {
         for (const animation of this.#rowMoves.values()) animation.cancel()
         this.#rowMoves.clear()
-        this.queue.forEach((entry, index) => {
-            entry.order = index
-            entry.track.domElement?.setAttribute('data-order', `${index}`)
-            entry.track.domElement!.style.order = `${index}`
-        })
+        this.queue.forEach((entry, index) => this.#placeRow(entry, index))
+        this.#syncHistoryDivider()
+        this.#syncScrollRoom()
+        // Scrolling before the rows are measured lets the move animation carry the scroll too.
+        const currentRowScrollTop = this.#currentRowScrollTop()
+        if (revealCurrentRow && currentRowScrollTop !== undefined) this.#queueListElement.scrollTop = currentRowScrollTop
+        this.#fadeRemovedHistoryDivider(previousPositions.get(this.#historyDivider))
+        bus.emit('queue:history-changed', { hasHistory: this.#historyLength > 0 })
         if (!reducedQueueMotion.matches) {
             const positions = this.#getRowPositions()
             for (const [element, position] of positions) {
@@ -439,10 +556,6 @@ export class QueueManager extends Manager {
         this.#interaction.QueueChanged()
     }
 
-    RemoveTrackFromQueue(trackEntry: QueueTrackEntry) {
-        this.RemoveTracksFromQueue([trackEntry])
-    }
-
     RemoveTracksFromQueue(trackEntries: readonly QueueTrackEntry[]) {
         const requested = new Set(trackEntries)
         const removing = this.queue.filter(entry => requested.has(entry))
@@ -452,6 +565,7 @@ export class QueueManager extends Manager {
         const removingPlayingTrack = removing.some(entry => entry.track.isPlaying)
         if (removingPlayingTrack) this.#setPlayingTrack()
 
+        this.#historyLength = this.queue.slice(0, this.#historyLength).filter(entry => !requested.has(entry)).length
         this.queue = this.queue.filter(entry => !requested.has(entry))
         for (const entry of removing) {
             if (entry.track.coverImage) URL.revokeObjectURL(entry.track.coverImage)
@@ -483,16 +597,21 @@ export class QueueManager extends Manager {
                 this.#rowRemovals.delete(animation)
             }
         }
-        this.SyncQueueChanges(positions)
+        this.SyncQueueChanges(positions, removingPlayingTrack)
 
-        if (removingPlayingTrack) {
-            if (this.queue.length) this.PlayCurrentTrack()
-            else Managers.PlayerManager.SkipCurrentTrack()
-        }
+        if (removingPlayingTrack) this.#playCurrentOrStop()
     }
 
     GetFirstSafeQueueIndex() {
-        return this.queue[0]?.track.isPlaying ? 1 : 0
+        return this.#historyLength + (this.queue[this.#historyLength]?.track.isPlaying ? 1 : 0)
+    }
+
+    get HistoryLength() {
+        return this.#historyLength
+    }
+
+    get HistoryDividerBounds() {
+        return this.#historyDivider.isConnected ? this.#historyDivider.getBoundingClientRect() : undefined
     }
 
     GetLastSafeQueueIndex() {
@@ -500,9 +619,38 @@ export class QueueManager extends Manager {
     }
 
     PlayNextTrack() {
-        const currentEntry = this.queue[0]
-        if (currentEntry?.track.isPlaying) this.RemoveTrackFromQueue(currentEntry)
-        else this.PlayCurrentTrack()
+        const currentEntry = this.queue[this.#historyLength]
+        if (currentEntry) this.#setCurrentIndex(this.#historyLength + (currentEntry.track.isPlaying ? 1 : 0))
+    }
+
+    PlayPreviousTrack() {
+        if (this.#historyLength > 0) this.#setCurrentIndex(this.#historyLength - 1)
+    }
+
+    /** Pauses or resumes the current track, and starts any other track. */
+    PlayOrToggleEntry(trackEntry: QueueTrackEntry) {
+        if (trackEntry.track.isPlaying) {
+            Managers.PlayerManager.TogglePlayback()
+            return
+        }
+        const index = this.queue.indexOf(trackEntry)
+        if (index !== -1) this.#setCurrentIndex(index)
+    }
+
+    /** Makes the row at `index` current, so every row above it becomes history and every row below it upcoming. */
+    #setCurrentIndex(index: number) {
+        this.#historyLength = index
+        this.#playCurrentOrStop()
+        this.SyncQueueChanges(undefined, true)
+    }
+
+    #playCurrentOrStop() {
+        if (this.queue[this.#historyLength]) {
+            this.PlayCurrentTrack()
+            return
+        }
+        this.#setPlayingTrack()
+        Managers.PlayerManager.SkipCurrentTrack()
     }
 
     ShuffleQueue() {
