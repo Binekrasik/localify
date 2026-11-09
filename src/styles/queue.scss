@@ -72,7 +72,7 @@
 
 $queueWidth: 384px;
 $queueHeaderHeight: 49px;
-$queueFooterHeight: 65px;
+$queueFooterHeight: $queueHeaderHeight;
 // Visible width of the collapsed sidebar: the border, list padding and row inset around one cover.
 $queuePeek: 118px;
 // Extra space that pushes track text past the collapsed sidebar's visible edge.
@@ -140,17 +140,11 @@ $queueDescenderRoom: 6px;
     }
 }
 
-.queueSelectionBox,
 .queueDropIndicator,
 .queueDragPreview {
     position: fixed;
     pointer-events: none;
     z-index: 110;
-}
-
-.queueSelectionBox {
-    border: 1px solid colors.accent(0.3);
-    background: colors.accent(0.05);
 }
 
 .queueDropIndicator {
@@ -286,7 +280,7 @@ $queueDescenderRoom: 6px;
         z-index: 2;
 
         background: rgba(colors.$foreground, 0.01);
-        backdrop-filter: blur(30px);
+        backdrop-filter: blur(15px);
     }
 
     #queueHeader {
@@ -343,7 +337,7 @@ $queueDescenderRoom: 6px;
     #queueFooter {
         bottom: 0;
         height: $queueFooterHeight;
-        padding: 20px 20px 20px 25px;
+        padding: 12px 20px 12px 25px;
 
         display: flex;
         align-items: center;
@@ -532,6 +526,12 @@ $queueDescenderRoom: 6px;
                 transition-delay: $queueSelectionFade;
                 transition-duration: $queueSelectionFade;
                 transition-timing-function: $queueRowMotion;
+            }
+
+            // A translucent highlight can't cover the border, so a row inside a multi-row highlight
+            // drops it at once. `none` also cancels the fade the rule above has already started.
+            &[data-selected="true"][data-grouped="true"]::after {
+                transition: none;
             }
 
             &[data-playing="true"] {
@@ -762,7 +762,6 @@ $queueDescenderRoom: 6px;
     #queueContainer *,
     #queueContainer .queueItem::before,
     #queueContainer .queueItem::after,
-    .queueSelectionBox,
     .queueDropIndicator,
     .queueDragPreview {
         animation: none !important;

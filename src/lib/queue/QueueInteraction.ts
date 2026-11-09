@@ -66,7 +66,6 @@ export class QueueInteraction {
     #holdTimer: number | undefined;
     #scrollFrame: number | undefined;
     #selectionFrame: number | undefined;
-    #selectionBox = document.createElement("div");
     #dropIndicator = document.createElement("div");
     #dragPreview = document.createElement("div");
     #selectionHighlights: SelectionHighlight[] = [];
@@ -80,14 +79,9 @@ export class QueueInteraction {
     constructor(element: HTMLElement, queue: QueueManager) {
         this.#element = element;
         this.#queue = queue;
-        this.#selectionBox.className = "queueSelectionBox";
         this.#dropIndicator.className = "queueDropIndicator";
         this.#dragPreview.className = "queueDragPreview";
-        for (const overlay of [
-            this.#selectionBox,
-            this.#dropIndicator,
-            this.#dragPreview,
-        ])
+        for (const overlay of [this.#dropIndicator, this.#dragPreview])
             overlay.setAttribute("aria-hidden", "true");
     }
 
@@ -190,7 +184,6 @@ export class QueueInteraction {
         if (this.#scrollFrame !== undefined)
             cancelAnimationFrame(this.#scrollFrame);
         this.#scrollFrame = undefined;
-        this.#hideOverlay(this.#selectionBox);
         this.#hideOverlay(this.#dropIndicator);
         this.#hideOverlay(this.#dragPreview);
         delete this.#element.dataset.gesture;
@@ -274,6 +267,7 @@ export class QueueInteraction {
             this.#hoverBorderAnimations.delete(element);
             element.style.removeProperty("--queue-hover-clip");
             if (!isSelected) {
+                delete element.dataset.grouped;
                 element.style.setProperty("--queue-hover-duration", "0s");
                 deselectedElements.push(element);
             }
@@ -409,6 +403,12 @@ export class QueueInteraction {
             });
             if (merging)
                 this.#animateSelectionMerge(highlight, matching.map(({ bounds }) => bounds), group);
+            // Set after the merge, which reads the hover border's opacity for the gap it animates.
+            const grouped = String(group.entries.size > 1);
+            for (const entry of group.entries) {
+                const element = entry.track.domElement!;
+                if (element.dataset.grouped !== grouped) element.dataset.grouped = grouped;
+            }
             this.#showOverlay(highlight, this.#element);
         }
         for (const { element } of unusedHighlights) {
@@ -738,57 +738,26 @@ export class QueueInteraction {
 
     #updateGesture() {
         const gesture = this.#gesture;
-        if (gesture?.kind === "selecting") this.#updateBoxSelection(gesture);
+        if (gesture?.kind === "selecting") this.#updateDragSelection(gesture);
         else if (gesture?.kind === "dragging") this.#updateDrag(gesture);
     }
 
-    #updateBoxSelection(gesture: QueueGesture & { kind: "selecting" }) {
+    /** Selects every row the pointer has swept past vertically since the gesture began. */
+    #updateDragSelection(gesture: QueueGesture & { kind: "selecting" }) {
         const pointer = this.#contentPosition(gesture.pointer);
-        const left = Math.min(gesture.origin.x, pointer.x);
-        const right = Math.max(gesture.origin.x, pointer.x);
         const top = Math.min(gesture.origin.y, pointer.y);
         const bottom = Math.max(gesture.origin.y, pointer.y);
         const bounds = this.#element.getBoundingClientRect();
         const entries = this.#queue.queue.filter((entry) => {
             const row = entry.track.domElement!.getBoundingClientRect();
-            const rowLeft = row.left - bounds.left + this.#element.scrollLeft;
             const rowTop = row.top - bounds.top + this.#element.scrollTop;
-            return (
-                rowLeft <= right &&
-                rowLeft + row.width >= left &&
-                rowTop <= bottom &&
-                rowTop + row.height >= top
-            );
+            return rowTop <= bottom && rowTop + row.height >= top;
         });
         this.#setSelection(
             gesture.additive
                 ? [...gesture.initialSelection, ...entries]
                 : entries,
         );
-        const visible = this.#visibleBounds();
-        const visibleLeft = Math.max(
-            bounds.left,
-            bounds.left + left - this.#element.scrollLeft,
-        );
-        const visibleTop = Math.max(
-            visible.top,
-            bounds.top + top - this.#element.scrollTop,
-        );
-        const visibleRight = Math.min(
-            bounds.left + this.#element.clientWidth,
-            bounds.left + right - this.#element.scrollLeft,
-        );
-        const visibleBottom = Math.min(
-            visible.bottom,
-            bounds.top + bottom - this.#element.scrollTop,
-        );
-        Object.assign(this.#selectionBox.style, {
-            left: `${visibleLeft}px`,
-            top: `${visibleTop}px`,
-            width: `${Math.max(1, visibleRight - visibleLeft)}px`,
-            height: `${Math.max(1, visibleBottom - visibleTop)}px`,
-        });
-        this.#showOverlay(this.#selectionBox);
     }
 
     #updateDrag(gesture: QueueGesture & { kind: "dragging" }) {
