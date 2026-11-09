@@ -9,7 +9,7 @@ export class LoadingBarManager extends Manager {
     Initialize(): void {}
 
     Show(total: number) {
-        this.#element.removeAttribute('data-hidden')
+        this.#element.dataset.idle = 'false'
         this.Update(0, total)
     }
 
@@ -19,7 +19,8 @@ export class LoadingBarManager extends Manager {
     }
 
     Hide() {
-        this.#element.setAttribute('data-hidden', 'true')
+        this.#element.dataset.idle = 'true'
+        this.#label.textContent = 'Nothing to do.'
         this.#fill.style.width = '0%'
     }
 }

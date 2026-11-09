@@ -1,7 +1,8 @@
 import sqs from "../shortQuerySelector";
 import type { QueueManager } from "./QueueManager";
 import type { QueueTrackEntry } from "./QueueTrackEntry";
-import { queueMotion, reducedQueueMotion } from "./QueueMotion";
+import { queueMotion } from "./QueueMotion";
+import { reducedMotion } from "../motion";
 
 const dragHoldMilliseconds = 200;
 const pointerTolerancePixels = 10;
@@ -134,8 +135,8 @@ export class QueueInteraction {
         document.addEventListener("visibilitychange", () => {
             if (document.hidden) this.CancelGesture();
         });
-        reducedQueueMotion.addEventListener("change", () => {
-            if (!reducedQueueMotion.matches) return;
+        reducedMotion.addEventListener("change", () => {
+            if (!reducedMotion.matches) return;
             for (const animation of this.#overlayAnimations.values())
                 animation.finish();
             for (const animation of this.#selectionMerges.values())
@@ -205,7 +206,7 @@ export class QueueInteraction {
         this.#overlayAnimations.delete(element);
         delete element.dataset.exiting;
         parent.appendChild(element);
-        if (reducedQueueMotion.matches) return;
+        if (reducedMotion.matches) return;
         const animation = element.animate(
             [{ opacity }, { opacity: getComputedStyle(element).opacity }],
             { ...queueMotion, duration: 180 },
@@ -223,7 +224,7 @@ export class QueueInteraction {
         this.#overlayAnimations.get(element)?.cancel();
         this.#overlayAnimations.delete(element);
         element.dataset.exiting = "true";
-        if (reducedQueueMotion.matches) {
+        if (reducedMotion.matches) {
             element.remove();
             return;
         }
@@ -390,7 +391,7 @@ export class QueueInteraction {
             }
             selection.entries = group.entries;
             this.#selectionHighlights.push(selection);
-            const merging = matching.length > 1 && !group.moving && !reducedQueueMotion.matches;
+            const merging = matching.length > 1 && !group.moving && !reducedMotion.matches;
             if (merging) highlight.dataset.merging = "true";
             animating ||= group.moving;
             highlight.dataset.dragging = String(group.dragging);
@@ -419,7 +420,7 @@ export class QueueInteraction {
     }
 
     #splitSelectionHighlights(groups: SelectionGroup[]) {
-        if (reducedQueueMotion.matches) return;
+        if (reducedMotion.matches) return;
         const splitHighlights: SelectionHighlight[] = [];
         const queueBounds = this.#element.getBoundingClientRect();
         for (const selection of [...this.#selectionHighlights]) {

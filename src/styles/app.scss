@@ -53,6 +53,28 @@ body {
     pointer-events: none;
 }
 
+// Drawn by PlayPauseIcon. The stroke rounds the corners of its polygons.
+.playPauseIcon {
+    display: block;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    fill: colors.$accent;
+    stroke: colors.$accent;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+@keyframes animationSpin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
 #app {
     --color-accent: hsl(from var(--color-track) h 88 83);
 

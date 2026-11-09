@@ -12,16 +12,6 @@
     }
 }
 
-@keyframes animationSpin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
 @keyframes animationPlaceholderShine {
     0% {
         background-position-x: -40px;
@@ -589,20 +579,6 @@ $queueDescenderRoom: 6px;
                 transition:
                     background-color $queueButtonFeedback,
                     opacity 0.3s $queueExpoOut;
-
-                .iconPause {
-                    display: none;
-                }
-
-                &[data-playing="true"] {
-                    .iconPlay {
-                        display: none;
-                    }
-
-                    .iconPause {
-                        display: block;
-                    }
-                }
             }
 
             &:hover .queuePlayButton {

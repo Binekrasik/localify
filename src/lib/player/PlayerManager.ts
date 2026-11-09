@@ -2,6 +2,13 @@ import sqs from '../shortQuerySelector';
 import { Manager } from '../Manager';
 import type { Track } from '../track/Track';
 import { bus, updateManager } from '../state/Managers';
+import { PlayPauseIcon } from './PlayPauseIcon';
+import { SeekBar } from './SeekBar';
+
+/** How long loading has to last before the play button and the seek bar show it. */
+const loadingIndicatorDelay = 300
+/** The cross-fade between the play button's icon and its spinner. Matches $-loadingFade in player.scss. */
+const loadingFade = 200
 
 function formatTime(totalSeconds: number): string {
     const safeSeconds = Number.isFinite(totalSeconds) ? Math.max(totalSeconds, 0) : 0
@@ -16,9 +23,17 @@ export class PlayerManager extends Manager {
     playOnNextTrackLoad = true
     #lyricsSynced = true
     #lastProgress = 0
+
+    /** The audio element is fetching a track's first frame. */
+    #loadPending = false
+    /** Playback has run out of data. */
+    #stalled = false
+    #loadingShown = false
+    #loadingTimer: number | null = null
+    #spinnerRestTimer = 0
+
     #progressTimeLabel = sqs('#player-label-progress .currentTime')
     #endTimeLabel = sqs('#player-label-progress .endTime')
-    #progressBar = sqs('#player-progress-bar')
     #nowPlaying = sqs('#player-now-playing')
     #coverImage = sqs<HTMLImageElement>('#player-cover')
     #titleLabel = sqs('#player-title')
@@ -36,7 +51,12 @@ export class PlayerManager extends Manager {
 
     audioElement = sqs<HTMLAudioElement>('#audioPlayer')
 
+    #playIcon = new PlayPauseIcon()
+    #seekBar = new SeekBar(sqs('#player-progress-bar'), this.controls.progressSlider)
+
     Initialize() {
+        this.controls.playButton.prepend(this.#playIcon.element)
+
         this.#initHooks()
         this.#initBusListeners()
         this.SetControlsEnabled(false)
@@ -51,8 +71,15 @@ export class PlayerManager extends Manager {
             this.controls.previousButton.disabled = !hasHistory
         })
 
-        bus.on('track:loaded', ({ track }) => this.#showNowPlaying(track))
-        bus.on('track:unloaded', () => this.#showNowPlaying(null))
+        bus.on('track:loaded', ({ track }) => {
+            this.#showNowPlaying(track)
+            this.#seekBar.enabled = true
+        })
+
+        bus.on('track:unloaded', () => {
+            this.#showNowPlaying(null)
+            this.#seekBar.enabled = false
+        })
 
         bus.on('lyrics:synced', () => {
             this.#lyricsSynced = true
@@ -67,6 +94,7 @@ export class PlayerManager extends Manager {
 
     #initHooks() {
         this.audioElement.addEventListener('loadeddata', () => {
+            this.#loadPending = false
             this.SetControlsEnabled(true)
 
             this.#endTimeLabel.textContent = formatTime(this.audioElement.duration)
@@ -74,9 +102,18 @@ export class PlayerManager extends Manager {
             if (this.playOnNextTrackLoad) {
                 this.audioElement.play()
                 this.playOnNextTrackLoad = false
+            } else if (this.isPlaying) {
+                // Loading a track stops the one before it without a pause event.
+                this.isPlaying = false
+                bus.emit('playback:pause', {})
             }
 
-            this.UpdatePlayButtonState()
+            this.#syncPlaybackState()
+        })
+
+        this.audioElement.addEventListener('error', () => {
+            this.#loadPending = false
+            this.#syncPlaybackState()
         })
 
         this.audioElement.addEventListener('emptied', () => {
@@ -85,19 +122,23 @@ export class PlayerManager extends Manager {
 
         this.audioElement.addEventListener('play', () => {
             this.isPlaying = true
-            this.UpdatePlayButtonState()
+            this.#syncPlaybackState()
             bus.emit('playback:play', {})
         })
 
         this.audioElement.addEventListener('pause', () => {
             this.isPlaying = false
-            this.UpdatePlayButtonState()
+            this.#syncPlaybackState()
             bus.emit('playback:pause', {})
         })
 
         this.audioElement.addEventListener('ended', () => {
             bus.emit('playback:ended', {})
         })
+
+        this.audioElement.addEventListener('waiting', () => this.#setStalled(true))
+        for (const type of ['playing', 'canplay', 'ended', 'emptied'])
+            this.audioElement.addEventListener(type, () => this.#setStalled(false))
 
         this.controls.progressSlider.addEventListener('input', () => {
             this.audioElement.currentTime = Math.min(
@@ -151,28 +192,72 @@ export class PlayerManager extends Manager {
     }
 
     TogglePlayback() {
-        if (this.audioElement.paused) {
-            if (this.audioElement.readyState === 0)
-                bus.emit('queue:next', {})
-            else this.audioElement.play()
-        } else this.audioElement.pause()
+        // A track that is still loading can't play or pause yet, so the click decides whether it starts once loaded.
+        if (this.#loadPending) {
+            this.playOnNextTrackLoad = !this.playOnNextTrackLoad
+            this.#syncPlaybackState()
+        } else if (!this.audioElement.paused)
+            this.audioElement.pause()
+        else if (this.audioElement.readyState === 0)
+            bus.emit('queue:next', {})
+        else this.audioElement.play()
     }
 
-    UpdatePlayButtonState() {
-        const { paused } = this.audioElement
+    #setStalled(stalled: boolean) {
+        this.#stalled = stalled
+        this.#syncPlaybackState()
+    }
 
-        this.controls.playButton.dataset.playing = String(!paused)
-        this.controls.playButton.setAttribute('aria-label', paused ? 'Play' : 'Pause')
+    /** Brings the play button and the seek bar's wave in line with the audio element. */
+    #syncPlaybackState() {
+        const { paused } = this.audioElement
+        const { playButton } = this.controls
+        const loading = this.#loadPending || (this.#stalled && !paused)
+        const pausesOnClick = this.#loadPending ? this.playOnNextTrackLoad : !paused
+
+        playButton.setAttribute('aria-label', pausesOnClick ? 'Pause' : 'Play')
+        playButton.setAttribute('aria-busy', String(loading))
+
+        // Loading only shows once it has lasted a while. Until then the controls keep their state,
+        // so a quick load takes the icon straight from one state to the next.
+        if (loading) {
+            if (!this.#loadingShown && this.#loadingTimer === null)
+                this.#loadingTimer = window.setTimeout(() => this.#showLoading(), loadingIndicatorDelay)
+            return
+        }
+
+        if (this.#loadingTimer !== null) {
+            window.clearTimeout(this.#loadingTimer)
+            this.#loadingTimer = null
+        }
+
+        this.#seekBar.playing = !paused
+
+        if (!this.#loadingShown) {
+            this.#playIcon.Set(!paused)
+            return
+        }
+
+        // Under the spinner the icon changes unseen. The two cross-fade, and the spinner turns until it is gone.
+        this.#playIcon.Set(!paused, false)
+        this.#loadingShown = false
+        playButton.dataset.loading = 'fading'
+        this.#spinnerRestTimer = window.setTimeout(() => playButton.dataset.loading = 'false', loadingFade)
+    }
+
+    #showLoading() {
+        window.clearTimeout(this.#spinnerRestTimer)
+        this.#loadingTimer = null
+        this.#loadingShown = true
+        this.controls.playButton.dataset.loading = 'true'
+        this.#seekBar.playing = false
     }
 
     SetControlsEnabled(enabled?: boolean) {
         console.log(`Player controls ${enabled ? 'enabled' : 'disabled'}.`)
 
         this.controls.progressSlider.disabled = !enabled
-        this.controls.volumeSlider.disabled = !enabled
         this.controls.syncButton.disabled = enabled ? this.#lyricsSynced : false
-
-        this.UpdatePlayButtonState()
     }
 
     LoadAudioFile(file: File | Blob) {
@@ -188,6 +273,8 @@ export class PlayerManager extends Manager {
             URL.revokeObjectURL(oldSrc)
 
         this.audioElement.load()
+        this.#loadPending = true
+        this.#syncPlaybackState()
     }
 
     LoadTrack(track: Track, playOnLoad: boolean = false) {
@@ -205,7 +292,10 @@ export class PlayerManager extends Manager {
         if (oldSrc.startsWith('blob:'))
             URL.revokeObjectURL(oldSrc)
         this.audioElement.load()
+        this.#loadPending = false
+        this.#stalled = false
         this.SetControlsEnabled(false)
+        this.#syncPlaybackState()
         this.#endTimeLabel.textContent = '0:00'
         bus.emit('track:unloaded', {})
     }
@@ -215,11 +305,12 @@ export class PlayerManager extends Manager {
         const ratio = Number.isFinite(duration) && duration > 0 ? currentTime / duration : 0
         const progress = Math.min(Math.max(ratio * 100, 0), 100)
 
+        this.#seekBar.Update(progress / 100, currentTime)
+
         if (progress === this.#lastProgress) return
         this.#lastProgress = progress
 
         this.controls.progressSlider.value = `${progress}`
-        this.#progressBar.style.setProperty('--progress', `${progress}%`)
         this.#progressTimeLabel.textContent = formatTime(currentTime)
     }
 

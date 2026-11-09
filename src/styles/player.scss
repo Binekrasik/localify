@@ -1,9 +1,25 @@
 @use './colors.scss' as colors;
 
 $-buttonFeedback: .3s cubic-bezier(0, 1, .3, 1);
+$-loadingFade: .2s ease;
 
-// One period of the remaining-time wave. The path runs past both tile edges so the stroke joins seamlessly.
-$-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='14' viewBox='0 0 20 14'%3E%3Cpath d='M-10 7Q-5 10 0 7Q5 4 10 7Q15 10 20 7Q25 4 30 7' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E");
+// The spinner's arc grows from its leading end, then shrinks towards it. The circle's path length is 100.
+@keyframes animationPlayerSpinnerSweep {
+    0% {
+        stroke-dasharray: 1 150;
+        stroke-dashoffset: 0;
+    }
+
+    50% {
+        stroke-dasharray: 71 150;
+        stroke-dashoffset: -28;
+    }
+
+    100% {
+        stroke-dasharray: 71 150;
+        stroke-dashoffset: -99;
+    }
+}
 
 #app[data-zen="true"] {
     #player[data-collapsable="true"] {
@@ -143,7 +159,8 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
             height: 40px;
         }
 
-        .icon {
+        .icon,
+        .playPauseIcon {
             width: 40px;
             height: 40px;
             transition: opacity $-buttonFeedback;
@@ -154,18 +171,55 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
         }
     }
 
+    // The icon and the loading spinner share one cell and cross-fade.
     #player-button-play {
-        .iconPause {
-            display: none;
+        display: grid;
+        place-items: center;
+
+        .playPauseIcon,
+        .playSpinner {
+            grid-area: 1 / 1;
         }
 
-        &[data-playing="true"] {
-            .iconPlay {
-                display: none;
+        .playPauseIcon {
+            transition: opacity $-loadingFade;
+        }
+
+        .playSpinner {
+            width: 40px;
+            height: 40px;
+            opacity: 0;
+
+            fill: none;
+            stroke: colors.$accent;
+            stroke-width: 3px;
+            stroke-linecap: round;
+            pointer-events: none;
+
+            animation: animationSpin 1.6s linear infinite;
+            transition: opacity $-loadingFade;
+
+            circle {
+                stroke-dasharray: 71 150;
+                animation: animationPlayerSpinnerSweep 1.4s ease-in-out infinite;
+            }
+        }
+
+        // PlayerManager sets "fading" while the spinner fades out, so it only stops turning once unseen.
+        &[data-loading="false"] .playSpinner {
+            &,
+            circle {
+                animation-play-state: paused;
+            }
+        }
+
+        &[data-loading="true"] {
+            .playPauseIcon {
+                opacity: 0;
             }
 
-            .iconPause {
-                display: block;
+            .playSpinner {
+                opacity: 1;
             }
         }
     }
@@ -174,12 +228,6 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
         display: flex;
         align-items: center;
         gap: 15px;
-
-        transition: opacity $-buttonFeedback;
-
-        &:has(#player-slider-progress:disabled) {
-            opacity: .4;
-        }
 
         .time {
             flex: none;
@@ -191,11 +239,18 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
             line-height: normal;
             white-space: nowrap;
             color: colors.$foreground;
+
+            transition: opacity $-buttonFeedback;
+        }
+
+        &:has(.progressBar[data-enabled="false"]) .time {
+            opacity: .4;
         }
     }
 
+    // SeekBar draws the track and sets --progress. The sizes are those of Android's media seek bar.
     .progressBar {
-        --progress: 0%;
+        --progress: 0px;
 
         position: relative;
         flex: none;
@@ -208,50 +263,60 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
             outline-offset: 4px;
         }
 
-        .remaining,
-        .elapsed,
+        .track,
         .handle {
             position: absolute;
             pointer-events: none;
         }
 
+        // The line caps reach past both ends of the bar.
+        .track {
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+
+            fill: none;
+            stroke-width: 2px;
+            stroke-linecap: round;
+        }
+
+        .wave {
+            stroke: colors.$accent;
+        }
+
+        .startCap {
+            fill: colors.$accent;
+        }
+
         .remaining {
-            top: 0;
-            bottom: 0;
-            left: var(--progress);
-            right: 0;
-
-            background: linear-gradient(90deg, colors.accent(.75), colors.accent(.25));
-            mask: $-waveTile left center / 20px 14px repeat-x;
+            stroke: colors.accent(.3);
         }
 
-        .elapsed {
-            top: 5.5px;
-            left: -1.5px;
-            width: calc(var(--progress) + 1.5px);
-            height: 3px;
-
-            border-radius: 1.5px;
-            background: colors.$accent;
-        }
-
+        // Covers the seam between the wave and the flat line.
         .handle {
-            top: -1.5px;
+            top: -1px;
             left: var(--progress);
-            width: 3px;
-            height: 17px;
-            margin-left: -1.5px;
+            width: 4px;
+            height: 16px;
+            margin-left: -2px;
 
-            border-radius: 1.5px;
+            border-radius: 2px;
             background: colors.$accent;
+
+            transition: opacity $-buttonFeedback;
+        }
+
+        &[data-enabled="false"] .handle {
+            opacity: 0;
         }
 
         // The thumb is as wide as the handle and the input overhangs by half of it, so pointer positions map 1:1.
         input {
             position: absolute;
             top: -5px;
-            left: -1.5px;
-            width: calc(100% + 3px);
+            left: -2px;
+            width: calc(100% + 4px);
             height: 24px;
             margin: 0;
 
@@ -261,12 +326,12 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
 
             &::-webkit-slider-thumb {
                 appearance: none;
-                width: 3px;
+                width: 4px;
                 height: 24px;
             }
 
             &::-moz-range-thumb {
-                width: 3px;
+                width: 4px;
                 height: 24px;
                 border: 0;
             }
@@ -294,12 +359,6 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
         align-items: center;
         gap: 6px;
         margin-left: 6px;
-
-        transition: opacity $-buttonFeedback;
-
-        &:has(input:disabled) {
-            opacity: .4;
-        }
     }
 
     #player-slider-volume {
@@ -366,5 +425,10 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
     #player * {
         animation: none !important;
         transition: none !important;
+    }
+
+    // Loading still has to read as activity, so the spinner keeps turning with a fixed arc.
+    #player #player-button-play:not([data-loading="false"]) .playSpinner {
+        animation: animationSpin 1.6s linear infinite !important;
     }
 }

@@ -7,8 +7,10 @@ import { QueueTrackEntry } from './QueueTrackEntry'
 import { createElement } from '../domUtils'
 import type { ContextMenuEntry } from '../interaction/ContextMenuEntry'
 import { QueueInteraction } from './QueueInteraction'
-import { queueMotion, reducedQueueMotion } from './QueueMotion'
+import { queueMotion } from './QueueMotion'
+import { reducedMotion } from '../motion'
 import { initQueueCollapse } from './QueueCollapse'
+import { PlayPauseIcon } from '../player/PlayPauseIcon'
 
 interface ParseResult {
     type: 'parse-result'
@@ -43,6 +45,7 @@ export class QueueManager extends Manager {
     #currentWorker: Worker | null = null
     #rowMoves = new Map<HTMLElement, Animation>()
     #rowRemovals = new Set<Animation>()
+    #playIcons = new WeakMap<QueueTrackEntry, PlayPauseIcon>()
 
     Initialize() {
         this.#initHooks()
@@ -51,8 +54,8 @@ export class QueueManager extends Manager {
         initQueueCollapse()
         this.#queueListElement.appendChild(this.#scrollSpacer)
         new ResizeObserver(() => this.#syncScrollRoom()).observe(this.#queueListElement)
-        reducedQueueMotion.addEventListener('change', () => {
-            if (!reducedQueueMotion.matches) return
+        reducedMotion.addEventListener('change', () => {
+            if (!reducedMotion.matches) return
             for (const animation of this.#rowMoves.values()) animation.finish()
             for (const animation of this.#rowRemovals) animation.finish()
         })
@@ -245,13 +248,13 @@ export class QueueManager extends Manager {
                     <span class="artist">${track.artist}</span>
                 </p>
             </div>
-            <button class="queuePlayButton" type="button" tabindex="-1" aria-label="Play track" title="Play">
-                <span class="icon iconPlay" style="--icon: url('/assets/icons/play_arrow.svg')"></span>
-                <span class="icon iconPause" style="--icon: url('/assets/icons/pause.svg')"></span>
-            </button>
+            <button class="queuePlayButton" type="button" tabindex="-1" aria-label="Play track" title="Play"></button>
         `
 
         const playButton = domTrackElement.querySelector('.queuePlayButton') as HTMLButtonElement
+        const playIcon = new PlayPauseIcon()
+        playButton.append(playIcon.element)
+        this.#playIcons.set(trackEntry, playIcon)
         // The list owns keyboard focus, so a click must not move it onto the button.
         playButton.addEventListener('mousedown', event => event.preventDefault())
         playButton.addEventListener('click', () => this.PlayOrToggleEntry(trackEntry))
@@ -393,7 +396,7 @@ export class QueueManager extends Manager {
             const button = entry.track.domElement?.querySelector('.queuePlayButton')
             if (!button) continue
             const canPause = entry.track.isPlaying && Managers.PlayerManager.isPlaying
-            button.setAttribute('data-playing', String(canPause))
+            this.#playIcons.get(entry)?.Set(canPause)
             button.setAttribute('aria-label', canPause ? 'Pause track' : 'Play track')
             button.setAttribute('title', canPause ? 'Pause' : 'Play')
         }
@@ -480,7 +483,7 @@ export class QueueManager extends Manager {
             return
         }
         this.#queueListElement.appendChild(divider)
-        if (!reducedQueueMotion.matches) divider.animate([{ opacity: 0 }, { opacity: 1 }], queueMotion)
+        if (!reducedMotion.matches) divider.animate([{ opacity: 0 }, { opacity: 1 }], queueMotion)
     }
 
     /** The scroll offset that puts the current row where the first row sits in an unscrolled list. */
@@ -506,7 +509,7 @@ export class QueueManager extends Manager {
     /** Fades a copy of the divider that just left the list, at the place it was last seen. */
     #fadeRemovedHistoryDivider(previous: DOMRect | undefined) {
         const divider = this.#historyDivider
-        if (!previous || divider.isConnected || reducedQueueMotion.matches) return
+        if (!previous || divider.isConnected || reducedMotion.matches) return
         const bounds = this.#queueListElement.getBoundingClientRect()
         const ghost = divider.cloneNode() as HTMLElement
         Object.assign(ghost.style, {
@@ -536,7 +539,7 @@ export class QueueManager extends Manager {
         if (revealCurrentRow && currentRowScrollTop !== undefined) this.#queueListElement.scrollTop = currentRowScrollTop
         this.#fadeRemovedHistoryDivider(previousPositions.get(this.#historyDivider))
         bus.emit('queue:history-changed', { hasHistory: this.#historyLength > 0 })
-        if (!reducedQueueMotion.matches) {
+        if (!reducedMotion.matches) {
             const positions = this.#getRowPositions()
             for (const [element, position] of positions) {
                 const previous = previousPositions.get(element)
@@ -572,7 +575,7 @@ export class QueueManager extends Manager {
             const element = entry.track.domElement
             if (!element) continue
             const position = positions.get(element)!
-            if (reducedQueueMotion.matches) {
+            if (reducedMotion.matches) {
                 element.remove()
                 continue
             }
