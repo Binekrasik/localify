@@ -1,3 +1,9 @@
 $background: #000;
 $foreground: #fff;
-$accent: #faacb5;
+
+// Derived from the current track's colour on #app.
+$accent: var(--color-accent);
+
+@function accent($alpha) {
+    @return hsl(from $accent h s l / $alpha);
+}

@@ -157,8 +157,7 @@ export class LyricsManager extends Manager {
     }
 
     SetAccentColor(color: string) {
-        const lyricsContainer = sqs<HTMLDivElement>('#lyricsContainer')
-        lyricsContainer.style.setProperty('--color-accent', color)
+        sqs('#app').style.setProperty('--color-track', color)
     }
 
     SyncLyrics() {

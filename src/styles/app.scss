@@ -35,11 +35,33 @@ body {
     color: colors.$foreground;
 }
 
+// Set per track by LyricsManager. Only #app reads it, so the fade runs on one element
+// instead of restarting on every descendant that uses `transition: all`.
+@property --color-track {
+    syntax: '<color>';
+    initial-value: #000;
+    inherits: false;
+}
+
+.icon {
+    display: block;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    background: colors.$accent;
+    mask: var(--icon) center / contain no-repeat;
+    pointer-events: none;
+}
+
 #app {
+    --color-accent: hsl(from var(--color-track) h 88 83);
+
     display: grid;
     grid-template-rows: 1fr auto;
     height: 100vh;
     overflow: hidden;
+
+    transition: --color-track 1s cubic-bezier(0, 1, 0.3, 1);
 
     #contentContainer {
         display: flex;

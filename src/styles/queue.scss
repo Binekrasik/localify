@@ -91,21 +91,16 @@ $queueDescenderRoom: 6px;
     transition: background-color $queueButtonFeedback;
 
     &:hover {
-        background: rgba(colors.$accent, 0.12);
+        background: colors.accent(0.12);
     }
 
     &:active {
-        background: rgba(colors.$accent, 0.22);
+        background: colors.accent(0.22);
     }
 
     &:focus-visible {
         outline: 2px solid colors.$accent;
         outline-offset: 1px;
-    }
-
-    img {
-        display: block;
-        pointer-events: none;
     }
 }
 
@@ -118,14 +113,14 @@ $queueDescenderRoom: 6px;
 }
 
 .queueSelectionBox {
-    border: 1px solid rgba(colors.$accent, 0.3);
-    background: rgba(colors.$accent, 0.05);
+    border: 1px solid colors.accent(0.3);
+    background: colors.accent(0.05);
 }
 
 .queueDropIndicator {
     height: 3px;
     border-radius: 2px;
-    background: rgba(colors.$accent, 0.3);
+    background: colors.accent(0.3);
     box-shadow: 0 0 6px rgba(colors.$background, 0.6);
     transition: top 0.15s cubic-bezier(0, 0.78, 0.17, 1);
 }
@@ -134,7 +129,7 @@ $queueDescenderRoom: 6px;
     z-index: 1000;
     max-width: 240px;
     padding: 8px 12px;
-    border: 1px solid rgba(colors.$accent, 0.4);
+    border: 1px solid colors.accent(0.4);
     border-radius: 4px;
     background: rgba(colors.$background, 0.9);
     color: colors.$foreground;
@@ -195,7 +190,7 @@ $queueDescenderRoom: 6px;
 
     width: $queueWidth;
 
-    border-left: 1px solid rgba(colors.$accent, 0.2);
+    border-left: 1px solid colors.accent(0.2);
 
     overflow: clip;
     isolation: isolate;
@@ -216,7 +211,7 @@ $queueDescenderRoom: 6px;
     }
 
     &:has(#queue:focus-visible) {
-        outline: 2px solid rgba(colors.$accent, 0.5);
+        outline: 2px solid colors.accent(0.5);
         outline-offset: -2px;
     }
 
@@ -227,7 +222,7 @@ $queueDescenderRoom: 6px;
 
         margin: 2rem 0;
 
-        color: rgba(colors.$accent, 0.35);
+        color: colors.accent(0.35);
         opacity: 1;
 
         transition: 0.5s cubic-bezier(0, 0.78, 0.17, 1);
@@ -270,13 +265,13 @@ $queueDescenderRoom: 6px;
         align-items: center;
         justify-content: center;
 
-        border-bottom: 1px solid rgba(colors.$accent, 0.05);
+        border-bottom: 1px solid colors.accent(0.05);
 
         h1 {
             @include queueTrimmedText;
 
             font-size: 18px;
-            color: rgba(colors.$accent, 0.5);
+            color: colors.accent(0.5);
             transition: opacity $queueCollapseMotion;
         }
     }
@@ -292,7 +287,7 @@ $queueDescenderRoom: 6px;
             background-color $queueButtonFeedback,
             transform $queueCollapseMotion;
 
-        img {
+        .icon {
             grid-area: 1 / 1;
             transition: opacity $queueButtonFeedback;
         }
@@ -321,7 +316,7 @@ $queueDescenderRoom: 6px;
         align-items: center;
         gap: 20px;
 
-        border-top: 1px solid rgba(colors.$accent, 0.05);
+        border-top: 1px solid colors.accent(0.05);
     }
 
     .queueActions {
@@ -372,8 +367,8 @@ $queueDescenderRoom: 6px;
             position: absolute;
             pointer-events: none;
             z-index: -1;
-            border: 2px solid rgba(colors.$accent, 0.22);
-            background: rgba(colors.$accent, 0.08);
+            border: 2px solid colors.accent(0.22);
+            background: colors.accent(0.08);
             transition:
                 opacity 0.18s cubic-bezier(0.63, 0.234, 0, 1),
                 top 0.2s cubic-bezier(0, 0.78, 0.17, 1),
@@ -427,15 +422,15 @@ $queueDescenderRoom: 6px;
                 opacity: 0;
 
                 background-image:
-                    linear-gradient(90deg, rgba(colors.$accent, $queueActiveStroke), rgba(colors.$accent, 0)),
-                    linear-gradient(90deg, rgba(colors.$accent, $queueActiveStroke), rgba(colors.$accent, 0)),
+                    linear-gradient(90deg, colors.accent($queueActiveStroke), colors.accent(0)),
+                    linear-gradient(90deg, colors.accent($queueActiveStroke), colors.accent(0)),
                     linear-gradient(
                         180deg,
-                        rgba(colors.$accent, 0.1),
-                        rgba(colors.$accent, 0.2) 50%,
-                        rgba(colors.$accent, 0.1)
+                        colors.accent(0.1),
+                        colors.accent(0.2) 50%,
+                        colors.accent(0.1)
                     ),
-                    linear-gradient(90deg, rgba(colors.$accent, 0.2), rgba(148, 102, 107, 0));
+                    linear-gradient(90deg, colors.accent(0.2), colors.accent(0));
                 background-position: left top, left bottom, left top, left top;
                 background-size: 100% 2px, 100% 2px, 2px 100%, 100% 100%;
                 background-repeat: no-repeat;
@@ -451,7 +446,7 @@ $queueDescenderRoom: 6px;
                 inset: -2px;
                 z-index: -2;
                 pointer-events: none;
-                border: 2px solid rgba(colors.$accent, 0.25);
+                border: 2px solid colors.accent(0.25);
                 opacity: 0;
                 clip-path: var(--queue-hover-clip, none);
                 transition: opacity var(--queue-hover-duration, 0.18s) $queueRowMotion;
@@ -555,7 +550,7 @@ $queueDescenderRoom: 6px;
 
                         background: linear-gradient(
                                 90deg,
-                                rgba(colors.$accent, 0.5) 50%,
+                                colors.accent(0.5) 50%,
                                 transparent 0%
                             )
                             no-repeat;
@@ -564,7 +559,7 @@ $queueDescenderRoom: 6px;
                         animation: animationPlaceholderShine 1s infinite;
                     }
 
-                    background: rgba(colors.$accent, 0.15);
+                    background: colors.accent(0.15);
                     color: transparent;
                 }
             }
@@ -631,9 +626,9 @@ $queueDescenderRoom: 6px;
                         font-size: 10px;
                         font-weight: 600;
                         text-transform: uppercase;
-                        color: rgba(colors.$accent, 0.6);
+                        color: colors.accent(0.6);
 
-                        background: rgba(colors.$accent, 0.08);
+                        background: colors.accent(0.08);
                         border-radius: 3px;
 
                         padding: 1px 4px;

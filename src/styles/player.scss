@@ -30,7 +30,7 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
 
     overflow: clip;
     backdrop-filter: blur(100px);
-    border-top: 1px solid rgba(colors.$accent, .2);
+    border-top: 1px solid colors.accent(.2);
     background: rgba(colors.$foreground, .05);
 
     transition: .25s cubic-bezier(0, .78, .17, 1);
@@ -49,21 +49,16 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
         transition: $-buttonFeedback;
 
         &:hover:not(:disabled) {
-            background: rgba(colors.$accent, .12);
+            background: colors.accent(.12);
         }
 
         &:active:not(:disabled) {
-            background: rgba(colors.$accent, .22);
+            background: colors.accent(.22);
         }
 
         &:focus-visible {
             outline: 2px solid colors.$accent;
             outline-offset: 1px;
-        }
-
-        img {
-            display: block;
-            pointer-events: none;
         }
     }
 
@@ -83,7 +78,7 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
             height: 50px;
             border-radius: 5px;
             overflow: hidden;
-            background: rgba(colors.$accent, .2);
+            background: colors.accent(.2);
 
             img {
                 display: block;
@@ -144,6 +139,11 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
         gap: 15px;
 
         button {
+            width: 40px;
+            height: 40px;
+        }
+
+        .icon {
             width: 40px;
             height: 40px;
         }
@@ -216,7 +216,7 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
             left: var(--progress);
             right: 0;
 
-            background: linear-gradient(90deg, rgba(colors.$accent, .75), rgba(colors.$accent, .25));
+            background: linear-gradient(90deg, colors.accent(.75), colors.accent(.25));
             mask: $-waveTile left center / 20px 14px repeat-x;
         }
 
@@ -295,10 +295,6 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
         &:has(input:disabled) {
             opacity: .4;
         }
-
-        img {
-            display: block;
-        }
     }
 
     #player-slider-volume {
@@ -320,13 +316,13 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
         &::-webkit-slider-runnable-track {
             height: 3px;
             border-radius: 1.5px;
-            background: linear-gradient(90deg, colors.$accent var(--volume), rgba(colors.$accent, .25) var(--volume));
+            background: linear-gradient(90deg, colors.$accent var(--volume), colors.accent(.25) var(--volume));
         }
 
         &::-moz-range-track {
             height: 3px;
             border-radius: 1.5px;
-            background: linear-gradient(90deg, colors.$accent var(--volume), rgba(colors.$accent, .25) var(--volume));
+            background: linear-gradient(90deg, colors.$accent var(--volume), colors.accent(.25) var(--volume));
         }
 
         &::-webkit-slider-thumb {
@@ -349,7 +345,7 @@ $-waveTile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' wi
 }
 
 @media (max-width: 940px) {
-    #player #player-label-volume img {
+    #player #player-label-volume .icon {
         display: none;
     }
 }
