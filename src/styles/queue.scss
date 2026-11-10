@@ -65,9 +65,10 @@ $queueHeaderHeight: 49px;
 // As tall as the player bar, so their top edges line up.
 $queueFooterHeight: $playerHeight;
 // Extra space that pushes track text past the collapsed sidebar's visible edge.
-$queuePeekTextOffset: 20px;
+$queuePeekTextOffset: 25px;
 $queueListPadding: 20px;
-$queueRowPadding: 15px;
+// Space between a row's outline and its content, the same on every side.
+$queueRowPadding: 10px;
 $queueCoverSize: 50px;
 // Width of the lines around a row: the playing fill's stroke, the hover border and the selection highlight.
 $queueRowOutline: 2px;
@@ -456,7 +457,7 @@ $queueDescenderRoom: 6px;
 
         .queueItem {
             // The row's outlines are drawn inside its padding.
-            padding: (10px + $queueRowOutline) ($queueRowPadding + $queueRowOutline);
+            padding: $queueRowPadding + $queueRowOutline;
             display: flex;
             align-items: center;
             gap: 15px;
