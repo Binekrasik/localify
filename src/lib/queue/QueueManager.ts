@@ -611,17 +611,14 @@ export class QueueManager extends Manager {
     }
 
     /**
-     * Slides a row in from the left as it fades in, the reverse of `#slideRowOut`. The motion eases out slowly,
-     * so the fade ends early and the row is fully visible for the last stretch. The row starts beside the
-     * list, where Firefox wouldn't render a `content-visibility: auto` row, so it renders until it arrives.
+     * Slides a row in from the left, the way `#slideRowOut` slides one out to the right. The row starts beside
+     * the list, where Firefox wouldn't render a `content-visibility: auto` row, so it renders until it arrives.
      */
     #slideRowIn(element: HTMLElement, bounds: DOMRect) {
         this.#cancelRowArrival(element)
         element.style.setProperty('content-visibility', 'visible')
-        const opacity = getComputedStyle(element).opacity
         const animation = element.animate([
-            { offset: 0, opacity: 0, transform: `translateX(${-bounds.width}px)` },
-            { offset: 0.7, opacity },
+            { offset: 0, transform: `translateX(${-bounds.width}px)` },
         ], queueMotion)
         this.#rowArrivals.set(element, animation)
         animation.onfinish = () => {
