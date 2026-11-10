@@ -45,6 +45,7 @@ export class QueueManager extends Manager {
     #currentWorker: Worker | null = null
     #rowMoves = new Map<HTMLElement, Animation>()
     #rowRemovals = new Set<Animation>()
+    #rowArrivals = new Map<HTMLElement, Animation>()
     #playIcons = new WeakMap<QueueTrackEntry, PlayPauseIcon>()
     /**
      * Keeps `data-near-viewport` on the rows within two list heights of the visible area, which always render.
@@ -66,6 +67,7 @@ export class QueueManager extends Manager {
             if (!reducedMotion.matches) return
             for (const animation of this.#rowMoves.values()) animation.finish()
             for (const animation of this.#rowRemovals) animation.finish()
+            for (const animation of this.#rowArrivals.values()) animation.finish()
         })
     }
 
@@ -581,6 +583,57 @@ export class QueueManager extends Manager {
         this.#interaction.QueueChanged()
     }
 
+    /**
+     * Takes a row out of the list's flow at `position`, where it was last seen, then slides it out to the
+     * right as it fades and removes it from the document.
+     */
+    #slideRowOut(element: HTMLElement, position: DOMRect, bounds: DOMRect, opacity: string) {
+        element.style.animation = 'none'
+        Object.assign(element.style, {
+            position: 'absolute',
+            top: `${position.top - bounds.top + this.#queueListElement.scrollTop}px`,
+            left: `${position.left - bounds.left + this.#queueListElement.scrollLeft}px`,
+            width: `${position.width}px`,
+            height: `${position.height}px`,
+        })
+        element.setAttribute('data-removed', 'true')
+        const animation = element.animate([
+            { opacity, transform: 'translateX(0)' },
+            { opacity: 0, transform: `translateX(${bounds.width}px)` },
+        ], { ...queueMotion, fill: 'forwards' })
+        this.#rowRemovals.add(animation)
+        animation.onfinish = () => {
+            this.#nearRows.unobserve(element)
+            element.remove()
+            animation.cancel()
+            this.#rowRemovals.delete(animation)
+        }
+    }
+
+    /**
+     * Slides a row in from the left as it fades in, the reverse of `#slideRowOut`. The row starts beside the
+     * list, where Firefox wouldn't render a `content-visibility: auto` row, so it renders until it arrives.
+     */
+    #slideRowIn(element: HTMLElement, bounds: DOMRect) {
+        this.#cancelRowArrival(element)
+        element.style.setProperty('content-visibility', 'visible')
+        const animation = element.animate([
+            { offset: 0, opacity: 0, transform: `translateX(${-bounds.width}px)` },
+        ], queueMotion)
+        this.#rowArrivals.set(element, animation)
+        animation.onfinish = () => {
+            if (this.#rowArrivals.get(element) === animation) this.#cancelRowArrival(element)
+        }
+    }
+
+    #cancelRowArrival(element: HTMLElement) {
+        const animation = this.#rowArrivals.get(element)
+        if (!animation) return
+        this.#rowArrivals.delete(element)
+        animation.cancel()
+        element.style.removeProperty('content-visibility')
+    }
+
     RemoveTracksFromQueue(trackEntries: readonly QueueTrackEntry[]) {
         const requested = new Set(trackEntries)
         const removing = this.queue.filter(entry => requested.has(entry))
@@ -603,26 +656,7 @@ export class QueueManager extends Manager {
                 continue
             }
             const opacity = getComputedStyle(element).opacity
-            element.style.animation = 'none'
-            Object.assign(element.style, {
-                position: 'absolute',
-                top: `${position.top - bounds.top + this.#queueListElement.scrollTop}px`,
-                left: `${position.left - bounds.left + this.#queueListElement.scrollLeft}px`,
-                width: `${position.width}px`,
-                height: `${position.height}px`,
-            })
-            element.setAttribute('data-removed', 'true')
-            const animation = element.animate([
-                { opacity, transform: 'translateX(0)' },
-                { opacity: 0, transform: `translateX(${bounds.width}px)` },
-            ], { ...queueMotion, fill: 'forwards' })
-            this.#rowRemovals.add(animation)
-            animation.onfinish = () => {
-                this.#nearRows.unobserve(element)
-                element.remove()
-                animation.cancel()
-                this.#rowRemovals.delete(animation)
-            }
+            this.#slideRowOut(element, position, bounds, opacity)
         }
         this.SyncQueueChanges(positions, removingPlayingTrack)
 
@@ -680,9 +714,20 @@ export class QueueManager extends Manager {
         Managers.PlayerManager.SkipCurrentTrack()
     }
 
+    /**
+     * Shuffles the upcoming rows that aren't pinned. On screen, each shuffled row leaves to the right the way a
+     * removed row does, while the row that takes its place arrives from the left.
+     */
     ShuffleQueue() {
         const safeIndex = this.GetFirstSafeQueueIndex()
         const unpinnedIndices = this.queue.flatMap((entry, index) => index >= safeIndex && !entry.isPinned ? [index] : [])
+        if (unpinnedIndices.length < 2) return
+        const shuffled = unpinnedIndices.flatMap(index => this.queue[index].track.domElement ?? [])
+        const positions = this.#getRowPositions()
+        const animate = !reducedMotion.matches
+        const bounds = this.#queueListElement.getBoundingClientRect()
+        const isVisible = (rect: DOMRect) => rect.bottom > bounds.top && rect.top < bounds.bottom
+
         for (let i = unpinnedIndices.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1))
             const from = unpinnedIndices[i]
@@ -690,6 +735,29 @@ export class QueueManager extends Manager {
             [this.queue[from], this.queue[to]] = [this.queue[to], this.queue[from]]
         }
 
-        this.SyncQueueChanges()
+        if (animate) {
+            // A copy of each visible row leaves from where the row was; the row itself moves to its new place.
+            const leaving = shuffled.filter(element => isVisible(positions.get(element)!))
+            const opacities = leaving.map(element => getComputedStyle(element).opacity)
+            leaving.forEach((element, index) => {
+                const copy = element.cloneNode(true) as HTMLElement
+                copy.removeAttribute('id')
+                copy.removeAttribute('role')
+                copy.setAttribute('aria-hidden', 'true')
+                copy.setAttribute('data-near-viewport', '')
+                this.#queueListElement.appendChild(copy)
+                this.#slideRowOut(copy, positions.get(element)!, bounds, opacities[index])
+            })
+        }
+        for (const element of shuffled) {
+            positions.delete(element)
+            this.#cancelRowArrival(element)
+        }
+
+        this.SyncQueueChanges(positions)
+
+        if (!animate) return
+        const arriving = shuffled.filter(element => isVisible(element.getBoundingClientRect()))
+        for (const element of arriving) this.#slideRowIn(element, bounds)
     }
 }
