@@ -6,6 +6,9 @@ import { LyricsEditor } from './LyricsEditor'
 import type { LyricsLine } from './LyricsLine'
 import type { Track } from '../track/Track'
 
+/** How long the position indicator takes to reach a new place. Matches $-indicatorGlide in lyrics.scss. */
+const indicatorGlide = 200
+
 export class LyricsManager extends Manager {
     state = {
         lines: [] as LyricsLine[],
@@ -174,7 +177,14 @@ export class LyricsManager extends Manager {
 
     #cachedLineTop = 0
     #cachedLineLeft = 0
+    /** When the indicator's glide ends, or 0 while it follows playback directly. */
+    #indicatorGlideEnd = 0
 
+    /**
+     * Moves the indicator to the playback position. It glides there in one transition when the line changes
+     * or playback jumps. In between it follows playback with no transition: one restarted on every frame takes
+     * a quarter of the page's frame time in Firefox and makes its memory grow for as long as the track plays.
+     */
     UpdateLyricsPositionIndicator(
         overridePaused: boolean = false,
     ): boolean | void {
@@ -197,15 +207,36 @@ export class LyricsManager extends Manager {
         const lineTime = parseFloat(
             this.state.currentLineElement.getAttribute('data-time')!,
         )
-        const currentPercentage = (this.#audioElement.currentTime - lineTime) / (nextTime - lineTime)
+
+        const newTop = this.state.currentLineElement.offsetTop
+        const newLeft = this.state.currentLineElement.offsetLeft
+
+        const now = performance.now()
+        const glideStarts = overridePaused || newTop !== this.#cachedLineTop || newLeft !== this.#cachedLineLeft
+        if (glideStarts) {
+            this.#indicatorGlideEnd = now + indicatorGlide
+            this.#lyricsPositionIndicator.dataset.gliding = 'true'
+        } else if (this.#indicatorGlideEnd !== 0) {
+            // The transition is carrying the indicator to where playback will be when it ends.
+            if (now < this.#indicatorGlideEnd) return
+
+            this.#indicatorGlideEnd = 0
+            this.#lyricsPositionIndicator.dataset.gliding = 'false'
+        }
+
+        // A glide aims at the position playback reaches by its end, so following takes over without a step.
+        const lead = glideStarts && !this.#audioElement.paused
+            ? indicatorGlide / 1000 * this.#audioElement.playbackRate
+            : 0
+        const currentPercentage = Math.min(
+            (this.#audioElement.currentTime + lead - lineTime) / (nextTime - lineTime),
+            1,
+        )
 
         const textSpan = this.state.currentLineElement.querySelector(
             '.textContent',
         ) as HTMLSpanElement
         const topOffset = textSpan.clientHeight * currentPercentage
-
-        const newTop = this.state.currentLineElement.offsetTop
-        const newLeft = this.state.currentLineElement.offsetLeft
 
         if (newTop !== this.#cachedLineTop) {
             this.#lyricsPositionIndicator.style.setProperty('top', `${newTop}px`)

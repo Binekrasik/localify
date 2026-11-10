@@ -1,5 +1,8 @@
 @use './colors.scss' as colors;
 
+// Matches indicatorGlide in LyricsManager.
+$-indicatorGlide: .2s cubic-bezier(.34, .96, .64, 1);
+
 @keyframes animation-lyric-slideIn {
     0% {
         opacity: 0;
@@ -63,8 +66,14 @@
 
         font-family: 'Instrument Sans';
 
-        transition: .2s cubic-bezier(.34, .96, .64, 1);
+        // The height follows playback on every frame, so it only transitions while LyricsManager
+        // marks the indicator as gliding to a new line or to a seek's target.
+        transition: top $-indicatorGlide, left $-indicatorGlide;
         transform: translateX(-18px);
+
+        &[data-gliding="true"] {
+            transition: top $-indicatorGlide, left $-indicatorGlide, height $-indicatorGlide;
+        }
     }
 
     #lyrics {
