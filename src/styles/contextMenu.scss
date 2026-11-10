@@ -1,21 +1,29 @@
 @use "./colors.scss" as colors;
 
 #appContextMenu {
-    position: absolute;
+    position: fixed;
     display: flex;
     flex-direction: column;
+    width: max-content;
+    max-width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+    overflow-x: hidden;
+    overflow-y: auto;
     z-index: 100;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
 
     transition:
-        opacity 0.2s cubic-bezier(0.63, 0.234, 0, 1),
-        visibility 0s 0.2s;
+        opacity 0.3s cubic-bezier(0.63, 0.234, 0, 1),
+        visibility 0s 0.3s;
 
-    backdrop-filter: blur(20px);
-    background: rgba(#777, 0.05);
-    border: 2px solid rgba(colors.$foreground, 0.15);
+    backdrop-filter: blur(15px);
+    background: color-mix(in srgb, colors.accent(0.6) 20%, rgba(#000, 0.6) 80%);
+    border: 1px solid colors.accent(0.15);
+    border-radius: 0;
+
+    // box-shadow: 0 0 60px rgba(#000, .2);
 
     cursor: default;
     user-select: none;
@@ -29,10 +37,15 @@
 
     p {
         margin: 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .clickable {
         display: flex;
+        flex-shrink: 0;
         align-items: center;
         gap: 1rem;
 
@@ -41,24 +54,25 @@
 
         transition: 0.3s cubic-bezier(0, 1, 0.3, 1);
 
+        font-family: inherit;
         font-size: 15px;
-        padding: 0.75rem;
+        font-weight: 500;
+        padding: .75rem 1rem;
 
         color: colors.$foreground;
 
-        img {
-            width: 24px;
-            height: 24px;
-            flex-shrink: 0;
-            object-fit: contain;
+        .icon {
+            width: 22px;
+            height: 22px;
         }
 
-        &:hover {
-            background: rgba(colors.$foreground, 0.15);
+        &:hover,
+        &:focus-visible {
+            background: colors.accent(0.15);
         }
 
         &:active {
-            background: rgba(colors.$foreground, 0.05);
+            background: colors.accent(0.05);
         }
     }
 

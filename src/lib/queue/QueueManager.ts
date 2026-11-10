@@ -26,6 +26,23 @@ interface ParseResult {
     error?: string
 }
 
+type QueueSort = 'name' | 'artist' | 'hue'
+
+/** Track accents are six-digit hex colours produced by FileParserWorker. */
+function accentHue(accentColor: string) {
+    const rgb = parseInt(accentColor.slice(1), 16)
+    const red = (rgb >> 16) & 255
+    const green = (rgb >> 8) & 255
+    const blue = rgb & 255
+    const max = Math.max(red, green, blue)
+    const range = max - Math.min(red, green, blue)
+    if (range === 0) return 0
+    const hue = max === red ? (green - blue) / range
+        : max === green ? (blue - red) / range + 2
+        : (red - green) / range + 4
+    return (hue * 60 + 360) % 360
+}
+
 function createListDecoration(className: string) {
     const element = document.createElement('div')
     element.className = className
@@ -81,6 +98,15 @@ export class QueueManager extends Manager {
     }
 
     #initHooks() {
+        const shuffleButton = sqs<HTMLButtonElement>('#player-button-shuffle')
+        shuffleButton.setAttribute('aria-haspopup', 'menu')
+        shuffleButton.addEventListener('contextmenu', event => {
+            event.preventDefault()
+            const bounds = shuffleButton.getBoundingClientRect()
+            Managers.ContextMenuManager.PopulateContextMenu(this.#getShuffleMenuEntries())
+            Managers.ContextMenuManager.ShowContextMenu(bounds.right, bounds.top - 5, 'bottom-right')
+        })
+
         this.#addToQueueInput.addEventListener('change', event => {
             const target = event.target as HTMLInputElement
             const files = target.files
@@ -304,28 +330,28 @@ export class QueueManager extends Manager {
         const allPinned = trackEntries.every(entry => entry.isPinned)
         return [
             {
-                icon: createElement('img', { src: '/assets/icons/keyboard_double_arrow_up.svg' }),
+                icon: '/assets/icons/keyboard_double_arrow_up.svg',
                 text: createElement('p', {}, 'Move to top'),
                 onClick: _ => {
                     this.#moveTracksToTop(trackEntries)
                 },
             },
             {
-                icon: createElement('img', { src: '/assets/icons/arrow_upward.svg' }),
+                icon: '/assets/icons/arrow_upward.svg',
                 text: createElement('p', {}, 'Move up'),
                 onClick: _ => {
                     this.#moveTracksByOne(trackEntries, -1)
                 },
             },
             {
-                icon: createElement('img', { src: '/assets/icons/arrow_downward.svg' }),
+                icon: '/assets/icons/arrow_downward.svg',
                 text: createElement('p', {}, 'Move down'),
                 onClick: _ => {
                     this.#moveTracksByOne(trackEntries, 1)
                 },
             },
             {
-                icon: createElement('img', { src: '/assets/icons/push_pin.svg' }),
+                icon: '/assets/icons/push_pin.svg',
                 text: createElement('p', {}, allPinned ? 'Unpin track' : 'Pin track'),
                 onClick: _ => {
                     for (const entry of trackEntries) {
@@ -336,20 +362,49 @@ export class QueueManager extends Manager {
                 },
             },
             {
-                icon: createElement('img', { src: '/assets/icons/delete.svg' }),
+                icon: '/assets/icons/delete.svg',
                 text: createElement('p', {}, 'Remove from queue'),
                 onClick: _ => {
                     this.RemoveTracksFromQueue(trackEntries)
                 },
             },
             {
-                icon: createElement('img', { src: '/assets/icons/view_image.svg' }),
+                icon: '/assets/icons/view_image.svg',
                 text: createElement('p', {}, 'Show cover art'),
                 onClick: _ => {
                     this.#showCoverArt(trackEntries)
                 },
             },
         ]
+    }
+
+    #getShuffleMenuEntries(): ContextMenuEntry[] {
+        const options: { sortBy: QueueSort; icon: string; label: string }[] = [
+            { sortBy: 'name', icon: 'sort_by_alpha', label: 'Sort by track name' },
+            { sortBy: 'artist', icon: 'artist', label: 'Sort by artist' },
+            { sortBy: 'hue', icon: 'palette', label: 'Sort by color' },
+        ]
+        return [
+            ...options.map(({ sortBy, icon, label }) => ({
+                icon: `/assets/icons/${icon}.svg`,
+                text: createElement('p', {}, label),
+                onClick: () => this.SortQueue(sortBy),
+            })),
+            {
+                icon: '/assets/icons/shuffle.svg',
+                text: createElement('p', {}, 'Shuffle randomly'),
+                onClick: () => this.ShuffleQueue(),
+            },
+        ]
+    }
+
+    SortQueue(sortBy: QueueSort) {
+        const collator = new Intl.Collator(undefined, { sensitivity: 'base' })
+        this.#reorderUpcomingTracks(entries => entries.sort((a, b) => {
+            if (sortBy === 'hue') return accentHue(a.track.accentColor) - accentHue(b.track.accentColor)
+            const field = sortBy === 'name' ? 'title' : 'artist'
+            return collator.compare(a.track[field], b.track[field])
+        }))
     }
 
     #showCoverArt(entries: QueueTrackEntry[]) {
@@ -714,30 +769,34 @@ export class QueueManager extends Manager {
         Managers.PlayerManager.SkipCurrentTrack()
     }
 
-    /**
-     * Shuffles the upcoming rows that aren't pinned. On screen, each shuffled row leaves to the right the way a
-     * removed row does, while the row that takes its place arrives from the left.
-     */
+    /** Shuffles the upcoming rows that aren't pinned. */
     ShuffleQueue() {
+        this.#reorderUpcomingTracks(entries => {
+            for (let i = entries.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [entries[i], entries[j]] = [entries[j], entries[i]]
+            }
+        })
+    }
+
+    /** Visible rows leave to the right while their replacements arrive from the left. */
+    #reorderUpcomingTracks(reorder: (entries: QueueTrackEntry[]) => void) {
         const safeIndex = this.GetFirstSafeQueueIndex()
         const unpinnedIndices = this.queue.flatMap((entry, index) => index >= safeIndex && !entry.isPinned ? [index] : [])
         if (unpinnedIndices.length < 2) return
-        const shuffled = unpinnedIndices.flatMap(index => this.queue[index].track.domElement ?? [])
+        const entries = unpinnedIndices.map(index => this.queue[index])
+        const rows = entries.flatMap(entry => entry.track.domElement ?? [])
         const positions = this.#getRowPositions()
         const animate = !reducedMotion.matches
         const bounds = this.#queueListElement.getBoundingClientRect()
         const isVisible = (rect: DOMRect) => rect.bottom > bounds.top && rect.top < bounds.bottom
 
-        for (let i = unpinnedIndices.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1))
-            const from = unpinnedIndices[i]
-            const to = unpinnedIndices[j];
-            [this.queue[from], this.queue[to]] = [this.queue[to], this.queue[from]]
-        }
+        reorder(entries)
+        unpinnedIndices.forEach((index, position) => this.queue[index] = entries[position])
 
         if (animate) {
             // A copy of each visible row leaves from where the row was; the row itself moves to its new place.
-            const leaving = shuffled.filter(element => isVisible(positions.get(element)!))
+            const leaving = rows.filter(element => isVisible(positions.get(element)!))
             const opacities = leaving.map(element => getComputedStyle(element).opacity)
             leaving.forEach((element, index) => {
                 const copy = element.cloneNode(true) as HTMLElement
@@ -749,7 +808,7 @@ export class QueueManager extends Manager {
                 this.#slideRowOut(copy, positions.get(element)!, bounds, opacities[index])
             })
         }
-        for (const element of shuffled) {
+        for (const element of rows) {
             positions.delete(element)
             this.#cancelRowArrival(element)
         }
@@ -757,7 +816,7 @@ export class QueueManager extends Manager {
         this.SyncQueueChanges(positions)
 
         if (!animate) return
-        const arriving = shuffled.filter(element => isVisible(element.getBoundingClientRect()))
+        const arriving = rows.filter(element => isVisible(element.getBoundingClientRect()))
         for (const element of arriving) this.#slideRowIn(element, bounds)
     }
 }
