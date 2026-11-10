@@ -68,6 +68,9 @@
             <!-- transport -->
             <div class="transport">
                 <div class="controls">
+                    <button id="player-button-sync" type="button" title="Sync lyrics" aria-label="Sync lyrics">
+                        <span class="icon" style="--icon: url('/assets/icons/sync_alt.svg')"></span>
+                    </button>
                     <button id="player-button-previous" type="button" aria-label="Previous track" disabled>
                         <span class="icon" style="--icon: url('/assets/icons/skip_previous.svg')"></span>
                     </button>
@@ -96,26 +99,10 @@
                 </div>
             </div>
 
-            <!-- sync, loop and volume -->
-            <div class="utilities">
-                <button id="player-button-sync" type="button" title="Sync lyrics" aria-label="Sync lyrics">
-                    <span class="icon" style="--icon: url('/assets/icons/sync_alt.svg')"></span>
-                </button>
-                <button id="player-button-mark-loop-start" type="button" title="Set loop start" aria-label="Set loop start">
-                    <span class="icon" style="--icon: url('/assets/icons/start.svg')"></span>
-                </button>
-                <button id="player-button-clear-loop" type="button" title="Clear loop" aria-label="Clear loop">
-                    <span class="icon" style="--icon: url('/assets/icons/close.svg')"></span>
-                </button>
-                <button id="player-button-mark-loop-end" type="button" title="Set loop end" aria-label="Set loop end">
-                    <span class="icon" style="--icon: url('/assets/icons/keyboard_tab.svg')"></span>
-                </button>
-
-                <label id="player-label-volume" title="Volume">
-                    <span class="icon" style="--icon: url('/assets/icons/volume_up.svg')"></span>
-                    <input id="player-slider-volume" type="range" min="0" max="100" value="50" aria-label="Volume" />
-                </label>
-            </div>
+            <label id="player-label-volume" title="Volume">
+                <span class="icon" style="--icon: url('/assets/icons/volume_up.svg')"></span>
+                <input id="player-slider-volume" type="range" min="0" max="100" value="50" aria-label="Volume" />
+            </label>
         </div>
     </div>
 

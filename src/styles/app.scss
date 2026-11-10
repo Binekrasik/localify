@@ -6,6 +6,7 @@
 @forward './loadingBar.scss';
 
 @use './colors.scss' as colors;
+@use './layout.scss' as *;
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 
@@ -85,7 +86,11 @@ body {
 
     transition: --color-track 1s cubic-bezier(0, 1, 0.3, 1);
 
+    // The queue sidebar runs the window's full height, so the content also takes the player's row.
     #contentContainer {
+        grid-row: 1 / -1;
+        grid-column: 1;
+
         display: flex;
         width: 100%;
         height: 1fr;
@@ -94,6 +99,12 @@ body {
 
         .mainContainer {
             flex: 1;
+            margin-bottom: $playerHeight;
         }
+    }
+
+    #player {
+        grid-row: 2;
+        grid-column: 1;
     }
 }

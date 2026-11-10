@@ -1,0 +1,9 @@
+// Sizes and motion shared by the queue sidebar, the player bar and the page grid.
+$playerHeight: 80px;
+
+$queueWidth: 384px;
+// Visible width of the collapsed sidebar: the border, list padding and row inset around one cover.
+$queuePeek: 118px;
+// How far the collapsed sidebar slides towards the window's edge.
+$queueCollapsedShift: $queueWidth - $queuePeek;
+$queueCollapseMotion: 0.3s cubic-bezier(0.25, 0.95, 0.5, 1);

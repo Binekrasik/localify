@@ -1,7 +1,6 @@
 import { ContextMenuManager } from '../interaction/ContextMenuManager'
 import { LoadingBarManager } from '../loading/LoadingBar'
 import { LyricsManager } from '../lyrics/LyricsManager'
-import { LoopManager } from '../player/LoopManager'
 import { PlayerManager } from '../player/PlayerManager'
 import { QueueManager } from '../queue/QueueManager'
 import { RemoteManager } from '../remote/RemoteManager'
@@ -16,7 +15,6 @@ export const Managers = {
     UpdateManager: updateManager,
     PlayerManager: new PlayerManager(),
     LyricsManager: new LyricsManager(),
-    LoopManager: new LoopManager(),
     QueueManager: new QueueManager(),
     RemoteManager: new RemoteManager(),
     ContextMenuManager: new ContextMenuManager(),

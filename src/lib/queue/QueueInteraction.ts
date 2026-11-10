@@ -725,7 +725,7 @@ export class QueueInteraction {
         };
     }
 
-    /** The part of the list not covered by the sidebar's bars, which the list's scroll padding records. */
+    /** The part of the list not covered by the bars above and below it, which the list's scroll padding records. */
     #visibleBounds() {
         const bounds = this.#element.getBoundingClientRect();
         const style = getComputedStyle(this.#element);

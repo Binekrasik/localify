@@ -1,7 +1,19 @@
 @use './colors.scss' as colors;
+@use './layout.scss' as *;
 
 $-buttonFeedback: .3s cubic-bezier(0, 1, .3, 1);
 $-loadingFade: .2s ease;
+$-barPadding: 15px;
+$-volumeInset: 8px;
+$-volumeSliderWidth: 24px;
+$-volumeZone: $-volumeInset + $-volumeSliderWidth + 6px + 24px;
+
+// The empty column that balances the track info. Its minimum keeps the transport clear of the sidebar and the volume.
+$-rightColumnMin: $queueWidth + $-volumeZone - $-barPadding;
+
+// The widest seek bar that still lets the transport sit in the window's centre. The constant is
+// the bar's side padding and column gaps (60px) plus the time labels and their gaps (90px).
+$-seekBarFit: calc(100vw - #{2 * $-rightColumnMin + 150px});
 
 // The spinner's arc grows from its leading end, then shrinks towards it. The circle's path length is 100.
 @keyframes animationPlayerSpinnerSweep {
@@ -34,22 +46,51 @@ $-loadingFade: .2s ease;
     }
 }
 
-#player {
-    width: 100%;
-    height: 80px;
-    padding: 0 15px;
+// Keeps the glass and the volume against the queue sidebar, which slides the same way in queue.scss.
+#app[data-zen="true"]:not(:has(#queueContainer:hover)):not(:has(#queueContainer :focus-visible)) #player,
+#app[data-zen="true"]:has(#queueContainer[data-reveal-suppressed="true"]) #player {
+    --player-queue-shift: #{$queueCollapsedShift};
+}
 
+#player {
+    position: relative;
+    z-index: 1;
+
+    width: 100%;
+    height: $playerHeight;
+
+    // The top padding is the height of the glass layer's border.
+    padding: 1px $-barPadding 0;
+
+    // The bar spans the window, so equal side columns centre the transport on it.
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto minmax($-rightColumnMin, 1fr);
     align-items: center;
-    gap: 15px;
+    gap: $-barPadding;
 
     overflow: clip;
-    backdrop-filter: blur(100px);
-    border-top: 1px solid colors.accent(.2);
-    background: rgba(colors.$foreground, .05);
 
     transition: .25s cubic-bezier(0, .78, .17, 1);
+
+    &::before,
+    #player-label-volume {
+        transform: translateX(var(--player-queue-shift, 0));
+        transition: transform $queueCollapseMotion;
+    }
+
+    // The glass stops at the queue sidebar, which paints over the rest of the bar.
+    // The overhang keeps the window's left edge covered while the layer follows the collapsed sidebar.
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 0 $queueWidth 0 (-$queueWidth);
+        z-index: -1;
+        pointer-events: none;
+
+        border-top: 1px solid colors.accent(.2);
+        background: rgba(colors.$foreground, .05);
+        backdrop-filter: blur(100px);
+    }
 
     button {
         flex: none;
@@ -151,6 +192,7 @@ $-loadingFade: .2s ease;
     }
 
     .controls {
+        position: relative;
         display: flex;
         gap: 15px;
 
@@ -168,6 +210,21 @@ $-loadingFade: .2s ease;
 
         button:disabled .icon {
             opacity: .25;
+        }
+    }
+
+    // Out of flow so the previous, play and next buttons stay centred over the seek bar.
+    #player-button-sync {
+        position: absolute;
+        top: 50%;
+        right: calc(100% + 15px);
+        width: 24px;
+        height: 24px;
+        transform: translateY(-50%);
+
+        .icon {
+            width: 24px;
+            height: 24px;
         }
     }
 
@@ -254,7 +311,7 @@ $-loadingFade: .2s ease;
 
         position: relative;
         flex: none;
-        width: 340px;
+        width: clamp(180px, $-seekBarFit, 340px);
         height: 14px;
 
         &:has(input:focus-visible) {
@@ -338,34 +395,26 @@ $-loadingFade: .2s ease;
         }
     }
 
-    .utilities {
-        justify-self: end;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-
-        button {
-            width: 24px;
-            height: 24px;
-
-            &:disabled {
-                opacity: .4;
-            }
-        }
-    }
-
     #player-label-volume {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: $queueWidth + $-volumeInset;
+
         display: flex;
         align-items: center;
         gap: 6px;
-        margin-left: 6px;
     }
 
     #player-slider-volume {
         --volume: 50%;
 
-        width: 64px;
-        height: 24px;
+        // With this writing mode, rtl puts the slider's minimum at the bottom.
+        writing-mode: vertical-lr;
+        direction: rtl;
+
+        width: $-volumeSliderWidth;
+        height: 56px;
         margin: 0;
 
         appearance: none;
@@ -378,29 +427,31 @@ $-loadingFade: .2s ease;
         }
 
         &::-webkit-slider-runnable-track {
-            height: 3px;
+            width: 3px;
+            height: 100%;
             border-radius: 1.5px;
-            background: linear-gradient(90deg, colors.$accent var(--volume), colors.accent(.25) var(--volume));
+            background: linear-gradient(0deg, colors.$accent var(--volume), colors.accent(.25) var(--volume));
         }
 
         &::-moz-range-track {
-            height: 3px;
+            width: 3px;
+            height: 100%;
             border-radius: 1.5px;
-            background: linear-gradient(90deg, colors.$accent var(--volume), colors.accent(.25) var(--volume));
+            background: linear-gradient(0deg, colors.$accent var(--volume), colors.accent(.25) var(--volume));
         }
 
         &::-webkit-slider-thumb {
             appearance: none;
-            width: 3px;
-            height: 17px;
-            margin-top: -7px;
+            width: 17px;
+            height: 3px;
+            margin-left: -7px;
             border-radius: 1.5px;
             background: colors.$accent;
         }
 
         &::-moz-range-thumb {
-            width: 3px;
-            height: 17px;
+            width: 17px;
+            height: 3px;
             border: 0;
             border-radius: 1.5px;
             background: colors.$accent;
@@ -414,14 +465,9 @@ $-loadingFade: .2s ease;
     }
 }
 
-@media (max-width: 870px) {
-    #player .progressBar {
-        width: 180px;
-    }
-}
-
 @media (prefers-reduced-motion: reduce) {
     #player,
+    #player::before,
     #player * {
         animation: none !important;
         transition: none !important;

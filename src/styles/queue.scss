@@ -1,4 +1,5 @@
 @use "./colors.scss" as colors;
+@use "./layout.scss" as *;
 
 @keyframes animationQueueItemSlideIn {
     0% {
@@ -60,11 +61,9 @@
     }
 }
 
-$queueWidth: 384px;
 $queueHeaderHeight: 49px;
-$queueFooterHeight: $queueHeaderHeight;
-// Visible width of the collapsed sidebar: the border, list padding and row inset around one cover.
-$queuePeek: 118px;
+// As tall as the player bar, so their top edges line up.
+$queueFooterHeight: $playerHeight;
 // Extra space that pushes track text past the collapsed sidebar's visible edge.
 $queuePeekTextOffset: 20px;
 $queueListPadding: 20px;
@@ -75,7 +74,6 @@ $queueBorderColor: colors.accent(0.2);
 $queueHistoryOpacity: 0.5;
 $queueHistoryDashLength: 10px;
 
-$queueCollapseMotion: 0.3s cubic-bezier(0, 0.78, 0.17, 1);
 $queueButtonFeedback: 0.3s cubic-bezier(0, 1, 0.3, 1);
 $queueRowMotion: cubic-bezier(0.63, 0.234, 0, 1);
 $queueExpoOut: cubic-bezier(0, 0.78, 0.17, 1);
@@ -160,7 +158,7 @@ $queueDescenderRoom: 6px;
 
 #app[data-zen="true"] {
     #queueContainer[data-collapsable="true"] {
-        // The sidebar stays in the content row, so it keeps clear of the player at any height.
+        // Gives the sidebar's width to the lyrics while the sidebar stays in the content row.
         margin-left: -$queueWidth;
 
         .queueEmptyIndicator {
@@ -174,7 +172,7 @@ $queueDescenderRoom: 6px;
 
         &:not(:hover):not(:has(:focus-visible)),
         &[data-reveal-suppressed="true"] {
-            transform: translateX($queueWidth - $queuePeek);
+            transform: translateX($queueCollapsedShift);
 
             .queueEmptyIndicator,
             #queueHeader h1,
@@ -193,7 +191,7 @@ $queueDescenderRoom: 6px;
                 }
 
                 &::before {
-                    background-size: 100% 0, 100% 0, 0 calc(100% - 4px), 100% 100%;
+                    border-image-width: 0;
                 }
 
                 img {
@@ -209,6 +207,9 @@ $queueDescenderRoom: 6px;
     flex-direction: column;
     flex-shrink: 0;
     position: relative;
+
+    // Above the player bar, which runs beneath the sidebar to the window's edge.
+    z-index: 2;
 
     width: $queueWidth;
 
@@ -458,8 +459,7 @@ $queueDescenderRoom: 6px;
             cursor: default;
             user-select: none;
 
-            // Playing state: the fill, the top and bottom strokes and the left indicator
-            // share one layer so they fade together.
+            // The playing fill and border share one layer so they fade together.
             &::before {
                 content: "";
                 position: absolute;
@@ -468,20 +468,12 @@ $queueDescenderRoom: 6px;
                 pointer-events: none;
                 opacity: 0;
 
-                background-image:
-                    linear-gradient(90deg, colors.accent($queueActiveStroke), colors.accent(0)),
-                    linear-gradient(90deg, colors.accent($queueActiveStroke), colors.accent(0)),
-                    linear-gradient(
-                        180deg,
-                        colors.accent(0.1),
-                        colors.accent(0.2) 50%,
-                        colors.accent(0.1)
-                    ),
-                    linear-gradient(90deg, colors.accent(0.2), colors.accent(0));
-                // The left indicator stops short of the top and bottom strokes so the corners aren't painted twice.
-                background-position: left top, left bottom, left 2px, left top;
-                background-size: 100% 2px, 100% 2px, 2px calc(100% - 4px), 100% 100%;
-                background-repeat: no-repeat;
+                // Native borders snap all three edges to the same device-pixel width at fractional display scales.
+                border: 2px solid transparent;
+                border-right-width: 0;
+                border-image: linear-gradient(90deg, colors.accent($queueActiveStroke), colors.accent(0)) 1;
+                background: linear-gradient(90deg, colors.accent(0.2), colors.accent(0));
+                background-origin: border-box;
                 mask-image: linear-gradient(
                     90deg,
                     #000 calc(var(--queue-flood-reach) - #{$queueFloodEdge}),
@@ -490,7 +482,7 @@ $queueDescenderRoom: 6px;
 
                 transition:
                     opacity 0.3s $queueRowMotion,
-                    background-size $queueCollapseMotion;
+                    border-image-width $queueCollapseMotion;
             }
 
             &::after {
@@ -537,7 +529,7 @@ $queueDescenderRoom: 6px;
                         1.2s $queueExpoOut animationQueueRowFloodBloom;
                     transition:
                         opacity $queueHoverMotion,
-                        background-size $queueCollapseMotion;
+                        border-image-width $queueCollapseMotion;
                 }
 
                 &:hover::before {
