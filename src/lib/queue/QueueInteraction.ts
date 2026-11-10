@@ -15,11 +15,23 @@ interface PointerPosition {
     y: number;
 }
 
-interface SelectionGroup {
+interface Bounds {
     left: number;
     top: number;
     right: number;
     bottom: number;
+}
+
+/** Where the rows are, measured once and reused until something moves them. */
+interface RowLayout {
+    /** Row bounds in the list's scroll coordinates, in queue order. */
+    rows: Map<Element, Bounds>;
+    /** Rows whose own transform is animating, which are not where layout puts them. */
+    moving: Set<Element>;
+    scrollHeight: number;
+}
+
+interface SelectionGroup extends Bounds {
     dragging: boolean;
     moving: boolean;
     entries: Set<QueueTrackEntry>;
@@ -49,6 +61,8 @@ type QueueGesture = GestureStart &
         | {
               kind: "dragging";
               entries: QueueTrackEntry[];
+              dragged: Set<QueueTrackEntry>;
+              previewSize: { width: number; height: number };
               beforeEntry: QueueTrackEntry | null;
               intoHistory: boolean;
               hasMoved: boolean;
@@ -56,25 +70,42 @@ type QueueGesture = GestureStart &
           }
     );
 
+/** Rounds to a whole device pixel, where a translated overlay stays as sharp as a laid out one. */
+function snapToDevicePixel(value: number) {
+    return Math.round(value * devicePixelRatio) / devicePixelRatio;
+}
+
+function sameEntries(a: Set<QueueTrackEntry>, b: Set<QueueTrackEntry>) {
+    if (a.size !== b.size) return false;
+    for (const entry of a) if (!b.has(entry)) return false;
+    return true;
+}
+
 export class QueueInteraction {
     #element: HTMLElement;
     #queue: QueueManager;
     #selected = new Set<QueueTrackEntry>();
+    /** Mirrors the rows' `data-grouped` attribute, so rendering doesn't read it back from the DOM. */
+    #grouped = new Set<QueueTrackEntry>();
+    #rowLayoutCache: RowLayout | undefined;
     #selectionAnchor: QueueTrackEntry | undefined;
     #focusedEntry: QueueTrackEntry | undefined;
     #nextOptionId = 0;
     #gesture: QueueGesture | undefined;
+    /** The pointer or the list moved since the gesture was last applied. */
+    #gestureChanged = false;
     #holdTimer: number | undefined;
-    #scrollFrame: number | undefined;
+    #gestureFrame: number | undefined;
     #selectionFrame: number | undefined;
     #dropIndicator = document.createElement("div");
     #dragPreview = document.createElement("div");
+    #selectionLayer = document.createElement("div");
     #selectionHighlights: SelectionHighlight[] = [];
     #selectionMerges = new Map<HTMLElement, Animation>();
     #hoverBorderAnimations = new Map<HTMLElement, Animation>();
     #overlayAnimations = new Map<HTMLElement, Animation>();
-    #selectionResizeObserver = new ResizeObserver(() =>
-        this.#renderSelectionHighlights(),
+    #selectionResizeObserver = new ResizeObserver((entries) =>
+        this.#rowsResized(entries),
     );
 
     constructor(element: HTMLElement, queue: QueueManager) {
@@ -82,7 +113,8 @@ export class QueueInteraction {
         this.#queue = queue;
         this.#dropIndicator.className = "queueDropIndicator";
         this.#dragPreview.className = "queueDragPreview";
-        for (const overlay of [this.#dropIndicator, this.#dragPreview])
+        this.#selectionLayer.className = "queueSelectionLayer";
+        for (const overlay of [this.#dropIndicator, this.#dragPreview, this.#selectionLayer])
             overlay.setAttribute("aria-hidden", "true");
     }
 
@@ -91,6 +123,7 @@ export class QueueInteraction {
         this.#element.setAttribute("aria-label", "Queue");
         this.#element.setAttribute("aria-multiselectable", "true");
         this.#element.tabIndex = 0;
+        this.#element.appendChild(this.#selectionLayer);
         this.#selectionResizeObserver.observe(this.#element);
         this.#element.addEventListener("pointerdown", (event) =>
             this.#startGesture(event),
@@ -110,7 +143,9 @@ export class QueueInteraction {
         this.#element.addEventListener("dragstart", (event) =>
             event.preventDefault(),
         );
-        this.#element.addEventListener("scroll", () => this.#updateGesture());
+        this.#element.addEventListener("scroll", () => {
+            this.#gestureChanged = true;
+        });
         this.#element.addEventListener("keydown", (event) =>
             this.#handleKey(event),
         );
@@ -158,13 +193,16 @@ export class QueueInteraction {
     }
 
     TrackAdded() {
+        this.#rowLayoutCache = undefined;
         this.CancelGesture();
         this.#scheduleSelectionHighlights();
     }
 
     QueueChanged() {
+        this.#rowLayoutCache = undefined;
         this.CancelGesture();
-        this.#setSelection(this.SelectedEntries);
+        // The rows may have moved even when the same ones stay selected.
+        if (!this.#setSelection(this.SelectedEntries)) this.#renderSelectionHighlights();
         if (
             this.#selectionAnchor &&
             !this.#queue.queue.includes(this.#selectionAnchor)
@@ -182,9 +220,10 @@ export class QueueInteraction {
         this.#gesture = undefined;
         window.clearTimeout(this.#holdTimer);
         this.#holdTimer = undefined;
-        if (this.#scrollFrame !== undefined)
-            cancelAnimationFrame(this.#scrollFrame);
-        this.#scrollFrame = undefined;
+        if (this.#gestureFrame !== undefined)
+            cancelAnimationFrame(this.#gestureFrame);
+        this.#gestureFrame = undefined;
+        this.#gestureChanged = false;
         this.#hideOverlay(this.#dropIndicator);
         this.#hideOverlay(this.#dragPreview);
         delete this.#element.dataset.gesture;
@@ -207,8 +246,9 @@ export class QueueInteraction {
         delete element.dataset.exiting;
         parent.appendChild(element);
         if (reducedMotion.matches) return;
+        // A lone first keyframe fades to the element's own opacity without reading it back.
         const animation = element.animate(
-            [{ opacity }, { opacity: getComputedStyle(element).opacity }],
+            { opacity, offset: 0 },
             { ...queueMotion, duration: 180 },
         );
         this.#overlayAnimations.set(element, animation);
@@ -250,14 +290,15 @@ export class QueueInteraction {
         } else this.#element.removeAttribute("aria-activedescendant");
     }
 
+    /** Returns whether the selection changed. */
     #setSelection(entries: Iterable<QueueTrackEntry>) {
         const requested = new Set(entries);
         const selected = new Set(
             this.#queue.queue.filter((entry) => requested.has(entry)),
         );
-        const selectionChanged =
-            selected.size !== this.#selected.size ||
-            [...selected].some((entry) => !this.#selected.has(entry));
+        if (sameEntries(selected, this.#selected)) return false;
+        // Measured before the rows are written to, so reading their bounds doesn't force a restyle.
+        const layout = selected.size ? this.#rowLayout() : undefined;
         const deselectedElements: HTMLElement[] = [];
         for (const entry of new Set([...this.#selected, ...selected])) {
             const isSelected = selected.has(entry);
@@ -267,9 +308,12 @@ export class QueueInteraction {
             this.#hoverBorderAnimations.get(element)?.cancel();
             this.#hoverBorderAnimations.delete(element);
             element.style.removeProperty("--queue-hover-clip");
-            if (!isSelected) {
+            if (isSelected) this.#selectionResizeObserver.observe(element);
+            else {
+                this.#selectionResizeObserver.unobserve(element);
+                this.#grouped.delete(entry);
                 delete element.dataset.grouped;
-                element.style.setProperty("--queue-hover-duration", "0s");
+                element.dataset.hoverInstant = "true";
                 deselectedElements.push(element);
             }
             element.setAttribute(
@@ -282,24 +326,82 @@ export class QueueInteraction {
             );
         }
         this.#selected = selected;
-        if (selectionChanged) {
-            this.#selectionResizeObserver.disconnect();
-            this.#selectionResizeObserver.observe(this.#element);
-            for (const entry of selected)
-                if (entry.track.domElement)
-                    this.#selectionResizeObserver.observe(
-                        entry.track.domElement,
-                    );
-        }
-        this.#renderSelectionHighlights();
+        this.#renderSelectionHighlights(layout);
         if (deselectedElements.length)
             requestAnimationFrame(() => {
                 // Paint the immediate reveal before restoring the hover transition.
                 requestAnimationFrame(() => {
                     for (const element of deselectedElements)
-                        element.style.removeProperty("--queue-hover-duration");
+                        delete element.dataset.hoverInstant;
                 });
             });
+        return true;
+    }
+
+    /** The list's scroll origin in viewport coordinates. */
+    #listOrigin(): PointerPosition {
+        const bounds = this.#element.getBoundingClientRect();
+        return {
+            x: bounds.left - this.#element.scrollLeft,
+            y: bounds.top - this.#element.scrollTop,
+        };
+    }
+
+    #contentBounds(element: Element, origin: PointerPosition): Bounds {
+        const bounds = element.getBoundingClientRect();
+        return {
+            left: bounds.left - origin.x,
+            top: bounds.top - origin.y,
+            right: bounds.right - origin.x,
+            bottom: bounds.bottom - origin.y,
+        };
+    }
+
+    /**
+     * Measures every row in one pass. The result is reused until the queue changes, a row resizes or the
+     * list's content height changes, so gestures and highlights don't lay the list out again on every frame.
+     */
+    #rowLayout(): RowLayout {
+        const scrollHeight = this.#element.scrollHeight;
+        if (this.#rowLayoutCache?.scrollHeight === scrollHeight) return this.#rowLayoutCache;
+        const moving = new Set<Element>();
+        for (const animation of this.#element.getAnimations({ subtree: true })) {
+            const effect = animation.effect;
+            if (
+                animation.playState !== "running" ||
+                !(effect instanceof KeyframeEffect) ||
+                effect.pseudoElement ||
+                effect.target?.parentElement !== this.#element
+            )
+                continue;
+            if (effect.getKeyframes().some((frame) => "translate" in frame || "transform" in frame))
+                moving.add(effect.target);
+        }
+        const origin = this.#listOrigin();
+        const rows = new Map<Element, Bounds>();
+        for (const entry of this.#queue.queue) {
+            const element = entry.track.domElement;
+            if (element) rows.set(element, this.#contentBounds(element, origin));
+        }
+        const layout = { rows, moving, scrollHeight };
+        // A moving row's bounds hold for one frame only.
+        this.#rowLayoutCache = moving.size ? undefined : layout;
+        return layout;
+    }
+
+    #rowsResized(entries: ResizeObserverEntry[]) {
+        const layout = this.#rowLayoutCache;
+        // Observing a row reports its size once, which the measured layout already has.
+        const unchanged = layout && entries.every(({ target, borderBoxSize }) => {
+            const row = layout.rows.get(target);
+            const size = borderBoxSize[0];
+            return row && size &&
+                Math.abs(row.right - row.left - size.inlineSize) < 0.05 &&
+                Math.abs(row.bottom - row.top - size.blockSize) < 0.05;
+        });
+        if (unchanged) return;
+        this.#rowLayoutCache = undefined;
+        this.#renderSelectionHighlights();
     }
 
     #scheduleSelectionHighlights() {
@@ -310,67 +412,66 @@ export class QueueInteraction {
         });
     }
 
-    #renderSelectionHighlights() {
+    /** Runs of selected rows that sit next to each other, each of which one highlight covers. */
+    #selectionGroups(layout: RowLayout) {
+        const groups: SelectionGroup[] = [];
+        let entries = this.#queue.queue;
+        // Rows in the middle of a move are out of queue order.
+        if (layout.moving.size)
+            entries = [...entries].sort((a, b) =>
+                (layout.rows.get(a.track.domElement!)?.top ?? 0) - (layout.rows.get(b.track.domElement!)?.top ?? 0),
+            );
+        const dragged = this.#gesture?.kind === "dragging" ? this.#gesture.dragged : undefined;
+        let group: SelectionGroup | undefined;
+        for (const entry of entries) {
+            const element = entry.track.domElement;
+            const bounds = element && layout.rows.get(element);
+            if (!element || !bounds) continue;
+            if (!this.#selected.has(entry)) {
+                group = undefined;
+                continue;
+            }
+            const dragging = dragged?.has(entry) ?? false;
+            const moving = layout.moving.has(element);
+            if (!group || group.dragging !== dragging || bounds.top > group.bottom + 11) {
+                group = { ...bounds, dragging, moving, entries: new Set([entry]) };
+                groups.push(group);
+            } else {
+                group.left = Math.min(group.left, bounds.left);
+                group.right = Math.max(group.right, bounds.right);
+                group.bottom = Math.max(group.bottom, bounds.bottom);
+                group.moving ||= moving;
+                group.entries.add(entry);
+            }
+        }
+        return groups;
+    }
+
+    #renderSelectionHighlights(layout?: RowLayout) {
         if (this.#selectionFrame !== undefined)
             cancelAnimationFrame(this.#selectionFrame);
         this.#selectionFrame = undefined;
-        const groups: SelectionGroup[] = [];
-        let group: SelectionGroup | undefined;
-        if (this.#selected.size) {
-            const rows = this.#queue.queue
-                .flatMap((entry) => {
-                    const element = entry.track.domElement;
-                    return element
-                        ? [{ entry, element, bounds: element.getBoundingClientRect() }]
-                        : [];
-                })
-                .sort((a, b) => a.bounds.top - b.bounds.top);
-            for (const { entry, element, bounds } of rows) {
-                if (!this.#selected.has(entry)) {
-                    group = undefined;
-                    continue;
-                }
-                const dragging = element.dataset.dragging === "true";
-                const moving = element.getAnimations().some((animation) =>
-                    animation.playState === "running" &&
-                    animation.effect instanceof KeyframeEffect &&
-                    animation.effect.getKeyframes().some((frame) => "translate" in frame || "transform" in frame),
-                );
-                if (!group || group.dragging !== dragging || bounds.top > group.bottom + 11) {
-                    group = {
-                        left: bounds.left,
-                        top: bounds.top,
-                        right: bounds.right,
-                        bottom: bounds.bottom,
-                        dragging,
-                        moving,
-                        entries: new Set([entry]),
-                    };
-                    groups.push(group);
-                } else {
-                    group.left = Math.min(group.left, bounds.left);
-                    group.right = Math.max(group.right, bounds.right);
-                    group.bottom = Math.max(group.bottom, bounds.bottom);
-                    group.moving ||= moving;
-                    group.entries.add(entry);
-                }
-            }
+        layout ??= this.#selected.size ? this.#rowLayout() : undefined;
+        const groups = layout ? this.#selectionGroups(layout) : [];
+        if (layout) this.#splitSelectionHighlights(groups, layout);
+        const owners = new Map<QueueTrackEntry, SelectionHighlight>();
+        const previousOrder = new Map<SelectionHighlight, number>();
+        for (const [index, highlight] of this.#selectionHighlights.entries()) {
+            previousOrder.set(highlight, index);
+            for (const entry of highlight.entries) if (!owners.has(entry)) owners.set(entry, highlight);
         }
-        this.#splitSelectionHighlights(groups);
-        const previousHighlights = this.#selectionHighlights.map((highlight) => ({
-            highlight,
-            bounds: highlight.element.getBoundingClientRect(),
-        }));
         const unusedHighlights = new Set(this.#selectionHighlights);
         this.#selectionHighlights = [];
-        const bounds = this.#element.getBoundingClientRect();
+        let origin: PointerPosition | undefined;
         let animating = false;
         for (const group of groups) {
-            const matching = previousHighlights.filter(({ highlight }) =>
-                unusedHighlights.has(highlight) &&
-                [...group.entries].some((entry) => highlight.entries.has(entry)),
-            );
-            let selection = matching[0]?.highlight;
+            const matching = new Set<SelectionHighlight>();
+            for (const entry of group.entries) {
+                const owner = owners.get(entry);
+                if (owner && unusedHighlights.has(owner)) matching.add(owner);
+            }
+            const matches = [...matching].sort((a, b) => previousOrder.get(a)! - previousOrder.get(b)!);
+            let selection = matches[0];
             if (!selection) {
                 const element = document.createElement("div");
                 element.className = "queueSelectionHighlight";
@@ -378,10 +479,14 @@ export class QueueInteraction {
                 selection = { element, entries: group.entries };
             }
             const highlight = selection.element;
-            if (group.moving || selection.entries.size !== group.entries.size ||
-                [...group.entries].some((entry) => !selection.entries.has(entry)))
+            if (group.moving || !sameEntries(selection.entries, group.entries))
                 this.#cancelSelectionMerge(highlight);
-            for (const { highlight: previous } of matching) {
+            const merging = matches.length > 1 && !group.moving && !reducedMotion.matches;
+            // Only a merge needs to know where the highlights are now, which costs a layout to read.
+            const previousBounds = merging
+                ? matches.map(({ element }) => this.#contentBounds(element, (origin ??= this.#listOrigin())))
+                : [];
+            for (const previous of matches) {
                 unusedHighlights.delete(previous);
                 if (previous === selection) continue;
                 this.#cancelSelectionMerge(previous.element);
@@ -391,26 +496,26 @@ export class QueueInteraction {
             }
             selection.entries = group.entries;
             this.#selectionHighlights.push(selection);
-            const merging = matching.length > 1 && !group.moving && !reducedMotion.matches;
             if (merging) highlight.dataset.merging = "true";
             animating ||= group.moving;
             highlight.dataset.dragging = String(group.dragging);
             highlight.dataset.moving = String(group.moving);
             Object.assign(highlight.style, {
-                left: `${group.left - bounds.left + this.#element.scrollLeft}px`,
-                top: `${group.top - bounds.top + this.#element.scrollTop}px`,
+                left: `${group.left}px`,
+                top: `${group.top}px`,
                 width: `${group.right - group.left}px`,
                 height: `${group.bottom - group.top}px`,
             });
-            if (merging)
-                this.#animateSelectionMerge(highlight, matching.map(({ bounds }) => bounds), group);
+            if (merging) this.#animateSelectionMerge(highlight, previousBounds, group, layout!);
             // Set after the merge, which reads the hover border's opacity for the gap it animates.
-            const grouped = String(group.entries.size > 1);
+            const grouped = group.entries.size > 1;
             for (const entry of group.entries) {
-                const element = entry.track.domElement!;
-                if (element.dataset.grouped !== grouped) element.dataset.grouped = grouped;
+                if (this.#grouped.has(entry) === grouped) continue;
+                if (grouped) this.#grouped.add(entry);
+                else this.#grouped.delete(entry);
+                entry.track.domElement!.dataset.grouped = String(grouped);
             }
-            this.#showOverlay(highlight, this.#element);
+            this.#showOverlay(highlight, this.#selectionLayer);
         }
         for (const { element } of unusedHighlights) {
             this.#cancelSelectionMerge(element);
@@ -419,20 +524,30 @@ export class QueueInteraction {
         if (animating) this.#scheduleSelectionHighlights();
     }
 
-    #splitSelectionHighlights(groups: SelectionGroup[]) {
-        if (reducedMotion.matches) return;
+    #splitSelectionHighlights(groups: SelectionGroup[], layout: RowLayout) {
+        // A highlight only splits when its rows end up in more than one group.
+        if (reducedMotion.matches || groups.length < 2) return;
+        const groupOf = new Map<QueueTrackEntry, SelectionGroup>();
+        const groupOrder = new Map<SelectionGroup, number>();
+        for (const [index, group] of groups.entries()) {
+            groupOrder.set(group, index);
+            for (const entry of group.entries) groupOf.set(entry, group);
+        }
         const splitHighlights: SelectionHighlight[] = [];
-        const queueBounds = this.#element.getBoundingClientRect();
+        let origin: PointerPosition | undefined;
         for (const selection of [...this.#selectionHighlights]) {
-            const parts = groups.filter((group) =>
-                [...group.entries].some((entry) => selection.entries.has(entry)),
-            );
+            const covered = new Set<SelectionGroup>();
+            for (const entry of selection.entries) {
+                const group = groupOf.get(entry);
+                if (group) covered.add(group);
+            }
+            const parts = [...covered].sort((a, b) => groupOrder.get(a)! - groupOrder.get(b)!);
             if (parts.length < 2 || parts.some((part) => part.moving)) continue;
-            const bounds = selection.element.getBoundingClientRect();
+            const bounds = this.#contentBounds(selection.element, (origin ??= this.#listOrigin()));
             const entries = selection.entries;
             this.#cancelSelectionMerge(selection.element);
             for (let index = 1; index < parts.length; index++)
-                this.#animateHoverBorderGap(entries, parts[index - 1].bottom, parts[index].top, "opening");
+                this.#animateHoverBorderGap(entries, parts[index - 1].bottom, parts[index].top, "opening", layout);
             for (const [index, part] of parts.entries()) {
                 const top = index === 0 ? bounds.top :
                     Math.max(bounds.top, Math.min(bounds.bottom, (parts[index - 1].bottom + part.top) / 2));
@@ -445,11 +560,11 @@ export class QueueInteraction {
                 highlight.entries = new Set([...part.entries].filter((entry) => entries.has(entry)));
                 Object.assign(highlight.element.style, {
                     transitionProperty: "none",
-                    top: `${top - queueBounds.top + this.#element.scrollTop}px`,
+                    top: `${top}px`,
                     height: `${bottom - top}px`,
                 });
                 if (index > 0) {
-                    this.#element.appendChild(highlight.element);
+                    this.#selectionLayer.appendChild(highlight.element);
                     this.#selectionHighlights.push(highlight);
                 }
                 splitHighlights.push(highlight);
@@ -468,14 +583,16 @@ export class QueueInteraction {
         delete element.dataset.merging;
     }
 
+    /** `top` and `bottom` bound the gap in the list's scroll coordinates. */
     #animateHoverBorderGap(
         entries: Iterable<QueueTrackEntry>, top: number, bottom: number, direction: "opening" | "closing",
+        layout: RowLayout,
     ) {
         const middle = (top + bottom) / 2;
         for (const entry of entries) {
             const element = entry.track.domElement;
-            if (!element) continue;
-            const bounds = element.getBoundingClientRect();
+            const bounds = element && layout.rows.get(element);
+            if (!element || !bounds) continue;
             if (bounds.bottom <= top || bounds.top >= bottom) continue;
             const gap = `inset(${top - bounds.top}px 0px ${bounds.bottom - bottom}px)`;
             const seam = `inset(${middle - bounds.top}px 0px ${bounds.bottom - middle}px)`;
@@ -504,7 +621,7 @@ export class QueueInteraction {
         }
     }
 
-    #animateSelectionMerge(element: HTMLElement, previous: DOMRect[], group: SelectionGroup) {
+    #animateSelectionMerge(element: HTMLElement, previous: Bounds[], group: SelectionGroup, layout: RowLayout) {
         const height = group.bottom - group.top;
         const segments = previous
             .map((bounds) => ({
@@ -519,7 +636,7 @@ export class QueueInteraction {
         }
         for (let index = 1; index < segments.length; index++)
             this.#animateHoverBorderGap(group.entries, group.top + segments[index - 1].bottom,
-                group.top + segments[index].top, "closing");
+                group.top + segments[index].top, "closing", layout);
         const filledSegments = segments.map((segment, index) => ({
             top: index === 0 ? 0 : (segments[index - 1].bottom + segment.top) / 2,
             bottom: index === segments.length - 1 ? height : (segment.bottom + segments[index + 1].top) / 2,
@@ -598,6 +715,8 @@ export class QueueInteraction {
             ) ?? selectedGroup.entries.values().next().value;
         const additive = event.ctrlKey || event.metaKey;
         const initialSelection = new Set(this.#selected);
+        const pointer = { x: event.clientX, y: event.clientY };
+        const origin = this.#contentPosition(pointer);
 
         if (!startedInSelectionGap) {
             if (entry && event.shiftKey) this.#selectRange(entry, additive);
@@ -608,7 +727,6 @@ export class QueueInteraction {
         if (entry && !event.shiftKey && !startedInSelectionGap) this.#selectionAnchor = entry;
         this.#setFocusedEntry(entry);
 
-        const pointer = { x: event.clientX, y: event.clientY };
         const gesture: QueueGesture = {
             kind: "pending",
             pointerId: event.pointerId,
@@ -619,7 +737,7 @@ export class QueueInteraction {
             startedInSelectionGap,
             pointer,
             clientOrigin: pointer,
-            origin: this.#contentPosition(pointer),
+            origin,
         };
         this.#gesture = gesture;
         this.#element.focus({ preventScroll: true });
@@ -631,15 +749,18 @@ export class QueueInteraction {
                     (entry) => !entry.track.isPlaying,
                 );
                 if (!entries.length) return;
-                this.#gesture = {
+                const dragging: QueueGesture = {
                     ...gesture,
                     kind: "dragging",
                     entries,
+                    dragged: new Set(entries),
+                    previewSize: { width: 0, height: 0 },
                     beforeEntry: null,
                     intoHistory: false,
                     hasMoved: false,
                     validDrop: false,
                 };
+                this.#gesture = dragging;
                 this.#element.dataset.gesture = "dragging";
                 for (const entry of entries)
                     entry.track.domElement?.setAttribute(
@@ -652,8 +773,13 @@ export class QueueInteraction {
                         ? entries[0].track.title
                         : `${entries.length} tracks`;
                 this.#showOverlay(this.#dragPreview);
+                // The preview keeps this size for the whole drag.
+                dragging.previewSize = {
+                    width: this.#dragPreview.offsetWidth,
+                    height: this.#dragPreview.offsetHeight,
+                };
                 this.#updateGesture();
-                this.#startAutoScroll();
+                this.#startGestureFrames();
             }, dragHoldMilliseconds);
         }
     }
@@ -673,14 +799,15 @@ export class QueueInteraction {
             window.clearTimeout(this.#holdTimer);
             this.#gesture = { ...gesture, kind: "selecting" };
             this.#element.dataset.gesture = "selecting";
-            this.#startAutoScroll();
+            this.#startGestureFrames();
         } else if (
             gesture.kind === "dragging" &&
             distance > pointerTolerancePixels
         ) {
             gesture.hasMoved = true;
         }
-        this.#updateGesture();
+        // Pointer events can outnumber frames, so the frame loop applies the latest position.
+        this.#gestureChanged = true;
         event.preventDefault();
     }
 
@@ -745,14 +872,13 @@ export class QueueInteraction {
 
     /** Selects every row the pointer has swept past vertically since the gesture began. */
     #updateDragSelection(gesture: QueueGesture & { kind: "selecting" }) {
+        const { rows } = this.#rowLayout();
         const pointer = this.#contentPosition(gesture.pointer);
         const top = Math.min(gesture.origin.y, pointer.y);
         const bottom = Math.max(gesture.origin.y, pointer.y);
-        const bounds = this.#element.getBoundingClientRect();
         const entries = this.#queue.queue.filter((entry) => {
-            const row = entry.track.domElement!.getBoundingClientRect();
-            const rowTop = row.top - bounds.top + this.#element.scrollTop;
-            return rowTop <= bottom && rowTop + row.height >= top;
+            const row = rows.get(entry.track.domElement!);
+            return row && row.top <= bottom && row.bottom >= top;
         });
         this.#setSelection(
             gesture.additive
@@ -762,49 +888,61 @@ export class QueueInteraction {
     }
 
     #updateDrag(gesture: QueueGesture & { kind: "dragging" }) {
-        Object.assign(this.#dragPreview.style, {
-            left: `${Math.max(0, Math.min(gesture.pointer.x + 16, window.innerWidth - this.#dragPreview.offsetWidth))}px`,
-            top: `${Math.max(0, Math.min(gesture.pointer.y + 16, window.innerHeight - this.#dragPreview.offsetHeight))}px`,
-        });
+        // Everything is read before the overlays are written to, so a frame lays the page out once.
+        const { rows } = this.#rowLayout();
+        const origin = this.#listOrigin();
         const bounds = this.#visibleBounds();
+        const divider = this.#queue.HistoryDividerBounds;
+        const { pointer, previewSize } = gesture;
+        const previewLeft = snapToDevicePixel(
+            Math.max(0, Math.min(pointer.x + 16, window.innerWidth - previewSize.width)),
+        );
+        const previewTop = snapToDevicePixel(
+            Math.max(0, Math.min(pointer.y + 16, window.innerHeight - previewSize.height)),
+        );
+        const listWidth = this.#element.clientWidth;
+        /** A row's bounds in the viewport. */
+        const rowBounds = (entry: QueueTrackEntry | null | undefined) => {
+            const row = entry?.track.domElement && rows.get(entry.track.domElement);
+            return row && {
+                left: row.left + origin.x,
+                top: row.top + origin.y,
+                right: row.right + origin.x,
+                bottom: row.bottom + origin.y,
+            };
+        };
+
+        this.#dragPreview.style.translate = `${previewLeft}px ${previewTop}px`;
         gesture.validDrop =
-            gesture.pointer.x >= bounds.left &&
-            gesture.pointer.x <= bounds.left + this.#element.clientWidth &&
-            gesture.pointer.y >= bounds.top &&
-            gesture.pointer.y <= bounds.bottom;
+            pointer.x >= bounds.left &&
+            pointer.x <= bounds.left + listWidth &&
+            pointer.y >= bounds.top &&
+            pointer.y <= bounds.bottom;
         if (!gesture.validDrop || !gesture.hasMoved) {
             this.#hideOverlay(this.#dropIndicator);
             return;
         }
-        const dragged = new Set(gesture.entries);
-        const divider = this.#queue.HistoryDividerBounds;
         gesture.intoHistory =
             divider !== undefined &&
-            gesture.pointer.y < divider.top + divider.height / 2;
+            pointer.y < divider.top + divider.height / 2;
         const remaining = this.#queue.queue.filter(
             (entry) =>
                 !entry.track.isPlaying &&
-                !dragged.has(entry) &&
+                !gesture.dragged.has(entry) &&
                 entry.order < this.#queue.HistoryLength === gesture.intoHistory,
         );
         gesture.beforeEntry =
             remaining.find((entry) => {
-                const row = entry.track.domElement!.getBoundingClientRect();
-                return gesture.pointer.y < row.top + row.height / 2;
+                const row = rowBounds(entry)!;
+                return pointer.y < (row.top + row.bottom) / 2;
             }) ?? null;
-        const beforeRow =
-            gesture.beforeEntry?.track.domElement?.getBoundingClientRect();
-        const lastRow = remaining
-            .at(-1)
-            ?.track.domElement?.getBoundingClientRect();
-        const firstDraggedRow =
-            gesture.entries[0].track.domElement!.getBoundingClientRect();
+        const beforeRow = rowBounds(gesture.beforeEntry);
+        const lastRow = rowBounds(remaining.at(-1));
+        const firstDraggedRow = rowBounds(gesture.entries[0])!;
         // An empty upcoming section still sits below the current track or the divider.
         const sectionTop = gesture.intoHistory
             ? undefined
-            : (this.#queue.queue
-                  .find((entry) => entry.track.isPlaying)
-                  ?.track.domElement?.getBoundingClientRect() ?? divider);
+            : (rowBounds(this.#queue.queue.find((entry) => entry.track.isPlaying)) ?? divider);
         const markerY = beforeRow
             ? beforeRow.top - 5
             : lastRow
@@ -814,15 +952,16 @@ export class QueueInteraction {
                 : firstDraggedRow.top - 5;
         Object.assign(this.#dropIndicator.style, {
             left: `${firstDraggedRow.left}px`,
-            width: `${firstDraggedRow.width}px`,
-            top: `${Math.max(bounds.top, Math.min(markerY, bounds.bottom - 3))}px`,
+            width: `${firstDraggedRow.right - firstDraggedRow.left}px`,
+            translate: `0 ${snapToDevicePixel(Math.max(bounds.top, Math.min(markerY, bounds.bottom - 3)))}px`,
         });
         this.#showOverlay(this.#dropIndicator);
     }
 
-    #startAutoScroll() {
+    /** Runs once a frame during a gesture: scrolls the list near its edges, then applies what changed. */
+    #startGestureFrames() {
         let previousTimestamp: number | undefined;
-        const scroll = (timestamp: number) => {
+        const frame = (timestamp: number) => {
             const gesture = this.#gesture;
             if (!gesture || gesture.kind === "pending") return;
             const seconds =
@@ -848,15 +987,21 @@ export class QueueInteraction {
                         (gesture.pointer.y - bounds.bottom + scrollEdgePixels) /
                             scrollEdgePixels,
                     );
-                const previousScroll = this.#element.scrollTop;
-                this.#element.scrollTop +=
-                    speed * scrollPixelsPerSecond * seconds;
-                if (this.#element.scrollTop !== previousScroll)
-                    this.#updateGesture();
+                if (speed) {
+                    const previousScroll = this.#element.scrollTop;
+                    this.#element.scrollTop +=
+                        speed * scrollPixelsPerSecond * seconds;
+                    if (this.#element.scrollTop !== previousScroll)
+                        this.#gestureChanged = true;
+                }
             }
-            this.#scrollFrame = requestAnimationFrame(scroll);
+            if (this.#gestureChanged) {
+                this.#gestureChanged = false;
+                this.#updateGesture();
+            }
+            this.#gestureFrame = requestAnimationFrame(frame);
         };
-        this.#scrollFrame = requestAnimationFrame(scroll);
+        this.#gestureFrame = requestAnimationFrame(frame);
     }
 
     #handleKey(event: KeyboardEvent) {

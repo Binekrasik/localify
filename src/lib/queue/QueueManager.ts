@@ -46,6 +46,14 @@ export class QueueManager extends Manager {
     #rowMoves = new Map<HTMLElement, Animation>()
     #rowRemovals = new Set<Animation>()
     #playIcons = new WeakMap<QueueTrackEntry, PlayPauseIcon>()
+    /**
+     * Keeps `data-near-viewport` on the rows within two list heights of the visible area, which always render.
+     * Chromium renders `content-visibility: auto` rows within 1.5 heights, so a wider margin makes each row
+     * start rendering once, when it gains the attribute.
+     */
+    #nearRows = new IntersectionObserver(entries => {
+        for (const entry of entries) entry.target.toggleAttribute('data-near-viewport', entry.isIntersecting)
+    }, { root: this.#queueListElement, rootMargin: '200% 0px' })
 
     Initialize() {
         this.#initHooks()
@@ -271,9 +279,23 @@ export class QueueManager extends Manager {
         this.#placeRow(trackEntry, this.queue.length)
 
         this.#queueListElement.appendChild(domTrackElement)
+        this.#reserveRowHeight(domTrackElement)
+        this.#nearRows.observe(domTrackElement)
         this.queue.push(trackEntry)
         this.#syncScrollRoom()
         this.#interaction.TrackAdded()
+    }
+
+    /**
+     * Rows away from the viewport skip rendering. Until a row has been shown its content takes up the
+     * height measured here, so rows that were never on screen sit exactly where they will be drawn.
+     */
+    #reserveRowHeight(row: HTMLElement) {
+        row.style.setProperty('content-visibility', 'visible')
+        const style = getComputedStyle(row)
+        const contentHeight = row.getBoundingClientRect().height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+        row.style.setProperty('contain-intrinsic-block-size', `auto ${contentHeight}px`)
+        row.style.removeProperty('content-visibility')
     }
 
     #getContextMenuEntries(trackEntries: QueueTrackEntry[]): ContextMenuEntry[] {
@@ -576,6 +598,7 @@ export class QueueManager extends Manager {
             if (!element) continue
             const position = positions.get(element)!
             if (reducedMotion.matches) {
+                this.#nearRows.unobserve(element)
                 element.remove()
                 continue
             }
@@ -595,6 +618,7 @@ export class QueueManager extends Manager {
             ], { ...queueMotion, fill: 'forwards' })
             this.#rowRemovals.add(animation)
             animation.onfinish = () => {
+                this.#nearRows.unobserve(element)
                 element.remove()
                 animation.cancel()
                 this.#rowRemovals.delete(animation)

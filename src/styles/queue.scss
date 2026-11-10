@@ -68,6 +68,9 @@ $queueFooterHeight: $playerHeight;
 $queuePeekTextOffset: 20px;
 $queueListPadding: 20px;
 $queueRowPadding: 15px;
+$queueCoverSize: 50px;
+// Width of the lines around a row: the playing fill's stroke, the hover border and the selection highlight.
+$queueRowOutline: 2px;
 $queueRowPlayingShift: 6px;
 $queueActiveStroke: 0.1;
 $queueBorderColor: colors.accent(0.2);
@@ -135,14 +138,18 @@ $queueDescenderRoom: 6px;
     z-index: 110;
 }
 
+// QueueInteraction places both with `translate`, which moves them without laying the page out.
 .queueDropIndicator {
+    top: 0;
     height: 3px;
     border-radius: 2px;
     background: $queueBorderColor;
-    transition: top 0.15s cubic-bezier(0, 0.78, 0.17, 1);
+    transition: translate 0.15s cubic-bezier(0, 0.78, 0.17, 1);
 }
 
 .queueDragPreview {
+    top: 0;
+    left: 0;
     z-index: 1000;
     max-width: 240px;
     padding: 8px 12px;
@@ -384,11 +391,22 @@ $queueDescenderRoom: 6px;
             cursor: grabbing;
         }
 
+        // Holds the selection highlights at the list's scroll origin. Layout containment keeps
+        // their resizing from laying out the rows.
+        .queueSelectionLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 0;
+            z-index: -1;
+            contain: layout size style;
+            pointer-events: none;
+        }
+
         .queueSelectionHighlight {
             position: absolute;
-            pointer-events: none;
-            z-index: -1;
-            border: 2px solid colors.accent(0.22);
+            border: $queueRowOutline solid colors.accent(0.22);
             background: colors.accent(0.08);
             transition:
                 opacity 0.18s cubic-bezier(0.63, 0.234, 0, 1),
@@ -437,7 +455,8 @@ $queueDescenderRoom: 6px;
         }
 
         .queueItem {
-            padding: 10px $queueRowPadding;
+            // The row's outlines are drawn inside its padding.
+            padding: (10px + $queueRowOutline) ($queueRowPadding + $queueRowOutline);
             display: flex;
             align-items: center;
             gap: 15px;
@@ -445,15 +464,27 @@ $queueDescenderRoom: 6px;
             position: relative;
             flex-shrink: 0;
 
-            border: 2px solid transparent;
-
             // A fixed width lets the row use the list's padding so a classic scrollbar doesn't narrow it.
             width: $queueWidth - 1px - 2 * $queueListPadding;
 
+            // Rows away from the viewport skip styling, painting and hit testing, so a frame costs the
+            // same however long the queue is. A skipped row's content keeps the height QueueManager
+            // measured for it. Containment clips a row's painting to its box and makes the row a
+            // stacking context, whether or not the row is skipped.
+            contain: layout style paint;
+            content-visibility: auto;
+            contain-intrinsic-block-size: auto $queueCoverSize;
+
+            // QueueManager marks rows within two list heights of the visible area, and those always
+            // render. Firefox would otherwise draw a row only once it is on screen, which leaves empty
+            // rows behind a fast scroll.
+            &[data-near-viewport] {
+                content-visibility: visible;
+            }
+
             transition:
                 background-color 0.3s $queueRowMotion,
-                opacity 0.3s $queueRowMotion,
-                border-color 0.18s $queueRowMotion;
+                opacity 0.3s $queueRowMotion;
             animation: 0.4s $queueRowMotion animationQueueItemSlideIn;
 
             cursor: default;
@@ -463,13 +494,13 @@ $queueDescenderRoom: 6px;
             &::before {
                 content: "";
                 position: absolute;
-                inset: -2px;
+                inset: 0;
                 z-index: -1;
                 pointer-events: none;
                 opacity: 0;
 
                 // Native borders snap all three edges to the same device-pixel width at fractional display scales.
-                border: 2px solid transparent;
+                border: $queueRowOutline solid transparent;
                 border-right-width: 0;
                 border-image: linear-gradient(90deg, colors.accent($queueActiveStroke), colors.accent(0)) 1;
                 background: linear-gradient(90deg, colors.accent(0.2), colors.accent(0));
@@ -488,14 +519,19 @@ $queueDescenderRoom: 6px;
             &::after {
                 content: "";
                 position: absolute;
-                inset: -2px;
+                inset: 0;
                 z-index: -2;
                 pointer-events: none;
-                border: 2px solid colors.accent(0.25);
+                border: $queueRowOutline solid colors.accent(0.25);
                 opacity: 0;
                 clip-path: var(--queue-hover-clip, none);
                 transition: opacity $queueHoverMotion;
-                transition-duration: var(--queue-hover-duration, 1s);
+            }
+
+            // Set for a moment on a row that was just deselected, so its hover border is back at once.
+            // An attribute restyles the row alone, where a custom property would restyle its whole subtree.
+            &[data-hover-instant="true"]::after {
+                transition-duration: 0s;
             }
 
             &:hover::after {
@@ -539,7 +575,6 @@ $queueDescenderRoom: 6px;
 
             &[data-selected="true"] {
                 background: transparent;
-                border-color: transparent;
 
                 &::before {
                     opacity: 0;
@@ -652,8 +687,8 @@ $queueDescenderRoom: 6px;
             }
 
             img {
-                width: 50px;
-                height: 50px;
+                width: $queueCoverSize;
+                height: $queueCoverSize;
                 flex-shrink: 0;
                 object-fit: cover;
                 transition:
