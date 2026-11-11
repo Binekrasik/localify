@@ -14,6 +14,7 @@ import { FileParserPool } from '../workers/FileParserPool'
 import type { ParsedTrack } from '../wasm/localify_core'
 
 type QueueSort = 'name' | 'artist' | 'hue'
+type ScrollOffset = { top: number; left: number }
 
 /** Track accents are six-digit hex colours produced by FileParserWorker. */
 function accentHue(accentColor: string) {
@@ -546,16 +547,21 @@ export class QueueManager extends Manager {
         this.#interaction.QueueChanged()
     }
 
+    #scrollOffset(): ScrollOffset {
+        return { top: this.#queueListElement.scrollTop, left: this.#queueListElement.scrollLeft }
+    }
+
     /**
      * Takes a row out of the list's flow at `position`, where it was last seen, then slides it out to the
-     * right as it fades and removes it from the document.
+     * right as it fades and removes it from the document. Callers read `scroll` once for a batch of rows:
+     * reading it after a row has changed forces a layout of the whole list.
      */
-    #slideRowOut(element: HTMLElement, position: DOMRect, bounds: DOMRect, opacity: string) {
+    #slideRowOut(element: HTMLElement, position: DOMRect, bounds: DOMRect, scroll: ScrollOffset, opacity: string) {
         element.style.animation = 'none'
         Object.assign(element.style, {
             position: 'absolute',
-            top: `${position.top - bounds.top + this.#queueListElement.scrollTop}px`,
-            left: `${position.left - bounds.left + this.#queueListElement.scrollLeft}px`,
+            top: `${position.top - bounds.top + scroll.top}px`,
+            left: `${position.left - bounds.left + scroll.left}px`,
             width: `${position.width}px`,
             height: `${position.height}px`,
         })
@@ -608,19 +614,23 @@ export class QueueManager extends Manager {
 
         this.#historyLength = this.queue.slice(0, this.#historyLength).filter(entry => !requested.has(entry)).length
         this.queue = this.queue.filter(entry => !requested.has(entry))
-        for (const entry of removing) {
+        // Read before any row changes, so the reads don't force a style and layout pass per row.
+        const animate = !reducedMotion.matches
+        const scroll = this.#scrollOffset()
+        const opacities = animate
+            ? removing.map(entry => entry.track.domElement && getComputedStyle(entry.track.domElement).opacity)
+            : []
+        removing.forEach((entry, index) => {
             if (entry.track.coverImage) URL.revokeObjectURL(entry.track.coverImage)
             const element = entry.track.domElement
-            if (!element) continue
-            const position = positions.get(element)!
-            if (reducedMotion.matches) {
+            if (!element) return
+            if (!animate) {
                 this.#nearRows.unobserve(element)
                 element.remove()
-                continue
+                return
             }
-            const opacity = getComputedStyle(element).opacity
-            this.#slideRowOut(element, position, bounds, opacity)
-        }
+            this.#slideRowOut(element, positions.get(element)!, bounds, scroll, opacities[index]!)
+        })
         this.SyncQueueChanges(positions, removingPlayingTrack)
 
         if (removingPlayingTrack) this.#playCurrentOrStop()
@@ -706,6 +716,7 @@ export class QueueManager extends Manager {
             // A copy of each visible row leaves from where the row was; the row itself moves to its new place.
             const leaving = rows.filter(element => isVisible(positions.get(element)!))
             const opacities = leaving.map(element => getComputedStyle(element).opacity)
+            const scroll = this.#scrollOffset()
             leaving.forEach((element, index) => {
                 const copy = element.cloneNode(true) as HTMLElement
                 copy.removeAttribute('id')
@@ -713,7 +724,7 @@ export class QueueManager extends Manager {
                 copy.setAttribute('aria-hidden', 'true')
                 copy.setAttribute('data-near-viewport', '')
                 this.#queueListElement.appendChild(copy)
-                this.#slideRowOut(copy, positions.get(element)!, bounds, opacities[index])
+                this.#slideRowOut(copy, positions.get(element)!, bounds, scroll, opacities[index])
             })
         }
         for (const element of rows) {
