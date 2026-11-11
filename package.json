@@ -6,8 +6,8 @@
   "scripts": {
     "wasm": "bun scripts/build-wasm.ts",
     "dev": "bun run wasm && vite",
-    "build": "bun run wasm && tsc && vite build",
-    "typecheck": "bun run wasm && tsc --noEmit",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
   "devDependencies": {

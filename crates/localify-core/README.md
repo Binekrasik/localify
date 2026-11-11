@@ -11,12 +11,16 @@ and pairs picked audio files with `.lrc` lyrics files. It runs in a dedicated wo
 From the repository root:
 
 ```sh
-bun scripts/build-wasm.ts
+bun run wasm
 ```
 
 This builds the crate for `wasm32-unknown-unknown` (with SIMD128, see `.cargo/config.toml`) and
 writes the `wasm-bindgen --target web` output to `src/lib/wasm/`. It needs Rust with the
 `wasm32-unknown-unknown` target and the `wasm-bindgen` CLI at the version pinned in `Cargo.lock`.
+
+Commit all four generated files in `src/lib/wasm/` whenever the crate, its dependencies, or its
+build configuration changes. The web app's `bun run build` bundles these files without running
+Rust, including on Vercel. `bun dev` rebuilds them before starting the development server.
 
 ## Test
 
