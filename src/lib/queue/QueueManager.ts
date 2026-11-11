@@ -2,7 +2,6 @@ import sqs from '../shortQuerySelector'
 import { Manager } from '../Manager'
 import { bus, Managers } from '../state/Managers'
 import type { Track } from '../track/Track'
-import { readLrcFile } from '../lyrics/lrcutils'
 import { QueueTrackEntry } from './QueueTrackEntry'
 import { createElement } from '../domUtils'
 import type { ContextMenuEntry } from '../interaction/ContextMenuEntry'
@@ -11,20 +10,8 @@ import { queueMotion } from './QueueMotion'
 import { reducedMotion } from '../motion'
 import { initQueueCollapse } from './QueueCollapse'
 import { PlayPauseIcon } from '../player/PlayPauseIcon'
-
-interface ParseResult {
-    type: 'parse-result'
-    index: number
-    total: number
-    title: string
-    artist: string
-    album: string
-    coverBuffer: ArrayBuffer | null
-    coverFormat: string | null
-    accentColor: string
-    format: string
-    error?: string
-}
+import { FileParserPool } from '../workers/FileParserPool'
+import type { ParsedTrack } from '../wasm/localify_core'
 
 type QueueSort = 'name' | 'artist' | 'hue'
 
@@ -59,7 +46,7 @@ export class QueueManager extends Manager {
     #scrollSpacer = createListDecoration('queueScrollSpacer')
     #interaction = new QueueInteraction(this.#queueListElement, this)
     #addToQueueInput = sqs('#player-add-to-queue') as HTMLInputElement
-    #currentWorker: Worker | null = null
+    #currentBatch: FileParserPool | null = null
     #rowMoves = new Map<HTMLElement, Animation>()
     #rowRemovals = new Set<Animation>()
     #rowArrivals = new Map<HTMLElement, Animation>()
@@ -132,131 +119,52 @@ export class QueueManager extends Manager {
     }
 
     ProcessAudioAndLyricsFiles(files: File[]) {
-        if (this.#currentWorker)
-            this.#currentWorker.terminate()
+        this.#currentBatch?.Cancel()
 
-        const audioFiles = files.filter(f => {
-            if (f.type.startsWith('audio/')) return true
-            const ext = '.' + f.name.split('.').pop()!.toLowerCase()
-            return ['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.opus'].includes(ext)
+        let total = 0
+        let processedCount = 0
+        this.#currentBatch = new FileParserPool(files, {
+            onStart: count => {
+                total = count
+                Managers.LoadingBarManager.Show(total)
+            },
+            onTrack: ({ audio, track }) => {
+                this.#addParsedTrack(audio, track)
+                processedCount++
+                Managers.LoadingBarManager.Update(processedCount, total)
+            },
+            onDone: () => {
+                Managers.LoadingBarManager.Hide()
+                this.#currentBatch = null
+            },
+            onError: err => {
+                console.error('File parser worker failed:', err)
+                Managers.LoadingBarManager.Hide()
+                this.#currentBatch = null
+            },
         })
-        if (audioFiles.length === 0) return
+    }
 
-        const entries: { audio: File; lyrics: File | undefined; format: string }[] = []
-
-        for (const audioFile of audioFiles) {
-            const match = audioFile.name.toLowerCase().match(/(.*)\.[^.]+$/)
-            const lyricsFile = match
-                ? files.find(f => f.name.toLowerCase().includes(match[1]) && f.name.toLowerCase().endsWith('.lrc'))
+    #addParsedTrack(audioFile: File, parsed: ParsedTrack) {
+        try {
+            const coverImage = parsed.cover && parsed.coverFormat
+                ? URL.createObjectURL(new Blob([parsed.cover as BlobPart], { type: parsed.coverFormat }))
                 : undefined
 
-            entries.push({
-                audio: audioFile,
-                lyrics: lyricsFile,
-                format: audioFile.name.split('.').pop() || '',
-            })
-        }
-
-        const totalFiles = entries.length
-        Managers.LoadingBarManager.Show(totalFiles)
-        let processedCount = 0
-
-        const worker = new Worker(
-            new URL('../workers/FileParserWorker.ts', import.meta.url),
-            { type: 'module' },
-        )
-        this.#currentWorker = worker
-
-        worker.postMessage({
-            type: 'parse-batch',
-            files: entries.map(e => e.audio),
-            total: entries.length,
-        })
-
-        worker.onmessage = (e: MessageEvent<ParseResult>) => {
-            const d = e.data
-            this.#processWorkerResult(d, entries, () => {
-                processedCount++
-                Managers.LoadingBarManager.Update(processedCount, totalFiles)
-                if (processedCount === totalFiles) {
-                    Managers.LoadingBarManager.Hide()
-                    this.#currentWorker = null
-                    worker.terminate()
-                }
-            }).catch(err => console.error('Worker result processing failed:', err))
-        }
-
-        worker.onerror = (err) => {
-            console.error('File parser worker failed:', err)
-            Managers.LoadingBarManager.Hide()
-            this.#currentWorker = null
-            worker.terminate()
-        }
-    }
-
-    async #processWorkerResult(
-        data: ParseResult,
-        entries: { audio: File; lyrics: File | undefined; format: string }[],
-        onComplete: () => void,
-    ) {
-        try {
-            const entry = entries[data.index]
-            if (!entry) return
-
-            let coverBlobUrl: string | undefined
-            if (data.coverBuffer && data.coverFormat) {
-                coverBlobUrl = URL.createObjectURL(new Blob([data.coverBuffer], { type: data.coverFormat }))
-            }
-
-            const track: Track = {
-                audioFile: entry.audio,
-                title: data.title,
-                artist: data.artist,
-                album: data.album || undefined,
-                coverImage: coverBlobUrl,
-                lyrics: undefined,
+            this.AddToQueue({
+                audioFile,
+                title: parsed.title,
+                artist: parsed.artist,
+                album: parsed.album || undefined,
+                coverImage,
+                lyrics: parsed.lyrics ?? undefined,
                 isPlaying: false,
-                accentColor: data.accentColor,
-                format: data.format,
-                coverState: coverBlobUrl ? 'loaded' : 'none',
-            }
-
-            this.AddToQueue(track)
-
-            // Update loading bar immediately — don't wait for lyrics
-            onComplete()
-
-            // Load lyrics asynchronously
-            if (entry.lyrics) {
-                const trackEntry = this.queue[this.queue.length - 1]
-                if (!trackEntry) return
-                try {
-                    trackEntry.track.lyrics = await readLrcFile(entry.lyrics)
-                    this.#updateQueueItemDOM(trackEntry)
-                } catch (err) {
-                    console.warn(`Failed to load lyrics for ${data.title}`, err)
-                }
-            }
+                accentColor: parsed.accentColor,
+                format: parsed.format,
+                coverState: coverImage ? 'loaded' : 'none',
+            })
         } catch (err) {
             console.warn(`Failed to add track:`, err)
-        }
-    }
-    #updateQueueItemDOM(entry: QueueTrackEntry) {
-        const track = entry.track
-        const el = track.domElement
-        if (!el) return
-
-        const nameElem = el.querySelector('.nameText') as HTMLElement | null
-        const statusElem = el.querySelector('.trackInfo') as HTMLElement | null
-        const imgElem = el.querySelector('img') as HTMLImageElement | null
-
-        if (nameElem) nameElem.textContent = track.title
-        if (statusElem)
-            statusElem.setAttribute('data-loaded', String(Boolean(track.lyrics)))
-
-        if (imgElem && track.coverImage) {
-            imgElem.src = track.coverImage
-            imgElem.classList.remove('loader')
         }
     }
 

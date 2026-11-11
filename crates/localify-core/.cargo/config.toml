@@ -1,0 +1,9 @@
+# SIMD128 speeds up PNG inflating by about 8% and JPEG decoding by about 3% in the browser, and
+# requires Chrome 91, Firefox 89 or Safari 16.4. Cargo reads this file only when run from this
+# directory, which is what scripts/build-wasm.ts does.
+#
+# The linear memory may grow to 512 MiB (a multiple of the 64 KiB page size) and no further, which
+# bounds every allocation a crafted file can provoke in the parsers. The largest legitimate need is
+# a 4096 x 4096 progressive JPEG cover, about 96 MiB of coefficients beside the cover itself.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128", "-C", "link-arg=--max-memory=536870912"]

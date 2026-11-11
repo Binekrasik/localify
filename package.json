@@ -4,9 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "typecheck": "tsc --noEmit",
+    "wasm": "bun scripts/build-wasm.ts",
+    "dev": "bun run wasm && vite",
+    "build": "bun run wasm && tsc && vite build",
+    "typecheck": "bun run wasm && tsc --noEmit",
     "preview": "vite preview"
   },
   "devDependencies": {
@@ -14,8 +15,6 @@
     "vite": "^8.3.5"
   },
   "dependencies": {
-    "music-metadata": "^12.3.3",
-    "sass": "^1.107.1",
-    "uint8array-extras": "^1.6.0"
+    "sass": "^1.107.1"
   }
 }
