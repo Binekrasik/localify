@@ -88,7 +88,8 @@ $-rightColumnOffsetRatio: math.div($queueWidth, $queuePeek);
 
     overflow: clip;
 
-    transition: .25s cubic-bezier(0, .78, .17, 1), --player-queue-offset $queueCollapseMotion;
+    // The padding and the columns follow --player-queue-offset, so they must not run transitions of their own.
+    transition: transform .25s cubic-bezier(0, .78, .17, 1), --player-queue-offset $queueCollapseMotion;
 
     &::before,
     #player-label-volume {
