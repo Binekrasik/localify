@@ -1,3 +1,4 @@
+@use 'sass:math';
 @use './colors.scss' as colors;
 @use './layout.scss' as *;
 
@@ -11,9 +12,22 @@ $-volumeZone: $-volumeInset + $-volumeSliderWidth + 6px + 24px;
 // The empty column that balances the track info. Its minimum keeps the transport clear of the sidebar and the volume.
 $-rightColumnMin: $queueWidth + $-volumeZone - $-barPadding;
 
-// The widest seek bar that still lets the transport sit in the window's centre. The constant is
-// the bar's side padding and column gaps (60px) plus the time labels and their gaps (90px).
+// The widest seek bar that still lets the transport sit in the window's centre with the sidebar expanded. The constant
+// is the bar's side padding and column gaps (60px) plus the time labels and their gaps (90px). Collapsing the sidebar
+// leaves the bar's width alone, so the wave isn't redrawn on every frame of the slide.
 $-seekBarFit: calc(100vw - #{2 * $-rightColumnMin + 150px});
+
+// How much of the sidebar's width sits on the right column's minimum for each pixel of --player-queue-offset.
+// At the full offset the minimum keeps only the room for the volume beside the collapsed sidebar.
+$-rightColumnOffsetRatio: math.div($queueWidth, $queuePeek);
+
+// The visible width of the collapsed sidebar, which the grid leaves out so the transport centres on the rest of the
+// bar. It's 0 while the sidebar is expanded, so the transport stays in the window's centre.
+@property --player-queue-offset {
+    syntax: '<length>';
+    initial-value: 0px;
+    inherits: false;
+}
 
 // The spinner's arc grows from its leading end, then shrinks towards it. The circle's path length is 100.
 @keyframes animationPlayerSpinnerSweep {
@@ -50,6 +64,7 @@ $-seekBarFit: calc(100vw - #{2 * $-rightColumnMin + 150px});
 #app[data-zen="true"]:not(:has(#queueContainer:hover)):not(:has(#queueContainer :focus-visible)) #player,
 #app[data-zen="true"]:has(#queueContainer[data-reveal-suppressed="true"]) #player {
     --player-queue-shift: #{$queueCollapsedShift};
+    --player-queue-offset: #{$queuePeek};
 }
 
 #player {
@@ -60,17 +75,20 @@ $-seekBarFit: calc(100vw - #{2 * $-rightColumnMin + 150px});
     height: $playerHeight;
 
     // The top padding is the height of the glass layer's border.
-    padding: 1px $-barPadding 0;
+    padding: 1px calc(#{$-barPadding} + var(--player-queue-offset)) 0 $-barPadding;
 
-    // The bar spans the window, so equal side columns centre the transport on it.
+    // Equal side columns centre the transport on the bar's content box, which ends at the collapsed sidebar.
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax($-rightColumnMin, 1fr);
+    grid-template-columns:
+        minmax(0, 1fr)
+        auto
+        minmax(calc(#{$-rightColumnMin} - var(--player-queue-offset) * #{$-rightColumnOffsetRatio}), 1fr);
     align-items: center;
     gap: $-barPadding;
 
     overflow: clip;
 
-    transition: .25s cubic-bezier(0, .78, .17, 1);
+    transition: .25s cubic-bezier(0, .78, .17, 1), --player-queue-offset $queueCollapseMotion;
 
     &::before,
     #player-label-volume {
