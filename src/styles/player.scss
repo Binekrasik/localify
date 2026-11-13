@@ -1,4 +1,3 @@
-@use 'sass:math';
 @use './colors.scss' as colors;
 @use './layout.scss' as *;
 
@@ -9,23 +8,30 @@ $-volumeInset: 8px;
 $-volumeSliderWidth: 24px;
 $-volumeZone: $-volumeInset + $-volumeSliderWidth + 6px + 24px;
 
-// The empty column that balances the track info. Its minimum keeps the transport clear of the sidebar and the volume.
+// The room right of the transport that keeps it clear of the volume and the part of the sidebar over the bar.
 $-rightColumnMin: $queueWidth + $-volumeZone - $-barPadding;
+$-rightColumnMinCollapsed: $-volumeZone - $-barPadding;
 
 // The widest seek bar that still lets the transport sit in the window's centre with the sidebar expanded. The constant
 // is the bar's side padding and column gaps (60px) plus the time labels and their gaps (90px). Collapsing the sidebar
 // leaves the bar's width alone, so the wave isn't redrawn on every frame of the slide.
 $-seekBarFit: calc(100vw - #{2 * $-rightColumnMin + 150px});
+$-seekBarWidth: clamp(180px, #{$-seekBarFit}, 340px);
+// The time labels and their gaps around the seek bar.
+$-transportWidth: calc(#{$-seekBarWidth} + 90px);
 
-// How much of the sidebar's width sits on the right column's minimum for each pixel of --player-queue-offset.
-// At the full offset the minimum keeps only the room for the volume beside the collapsed sidebar.
-$-rightColumnOffsetRatio: math.div($queueWidth, $queuePeek);
+// The track info column's width that centres the transport on the bar left of the sidebar's visible part, or
+// pushes it left as far as `$rightMin` requires. Percentages are of the bar's content box.
+@function -leftColumn($sidebar, $rightMin) {
+    $free: calc(100% - #{$sidebar} - #{$-transportWidth} - #{2 * $-barPadding});
+    @return max(0px, min(#{$free} - #{$rightMin}, #{$free} / 2));
+}
 
-// The visible width of the collapsed sidebar, which the grid leaves out so the transport centres on the rest of the
-// bar. It's 0 while the sidebar is expanded, so the transport stays in the window's centre.
-@property --player-queue-offset {
-    syntax: '<length>';
-    initial-value: 0px;
+// 0 with the sidebar expanded, 1 with it collapsed. The track info column blends between its widths for the two states,
+// so the transport travels straight between its two positions with the sidebar's easing.
+@property --player-queue-collapse {
+    syntax: '<number>';
+    initial-value: 0;
     inherits: false;
 }
 
@@ -64,7 +70,7 @@ $-rightColumnOffsetRatio: math.div($queueWidth, $queuePeek);
 #app[data-zen="true"]:not(:has(#queueContainer:hover)):not(:has(#queueContainer :focus-visible)) #player,
 #app[data-zen="true"]:has(#queueContainer[data-reveal-suppressed="true"]) #player {
     --player-queue-shift: #{$queueCollapsedShift};
-    --player-queue-offset: #{$queuePeek};
+    --player-queue-collapse: 1;
 }
 
 #player {
@@ -75,21 +81,23 @@ $-rightColumnOffsetRatio: math.div($queueWidth, $queuePeek);
     height: $playerHeight;
 
     // The top padding is the height of the glass layer's border.
-    padding: 1px calc(#{$-barPadding} + var(--player-queue-offset)) 0 $-barPadding;
+    padding: 1px $-barPadding 0;
 
-    // Equal side columns centre the transport on the bar's content box, which ends at the collapsed sidebar.
     display: grid;
     grid-template-columns:
-        minmax(0, 1fr)
+        calc(
+            #{-leftColumn(0px, $-rightColumnMin)} * (1 - var(--player-queue-collapse)) +
+            #{-leftColumn($queuePeek, $-rightColumnMinCollapsed)} * var(--player-queue-collapse)
+        )
         auto
-        minmax(calc(#{$-rightColumnMin} - var(--player-queue-offset) * #{$-rightColumnOffsetRatio}), 1fr);
+        minmax(0, 1fr);
     align-items: center;
     gap: $-barPadding;
 
     overflow: clip;
 
-    // The padding and the columns follow --player-queue-offset, so they must not run transitions of their own.
-    transition: transform .25s cubic-bezier(0, .78, .17, 1), --player-queue-offset $queueCollapseMotion;
+    // The columns follow --player-queue-collapse, so they must not run transitions of their own.
+    transition: transform .25s cubic-bezier(0, .78, .17, 1), --player-queue-collapse $queueCollapseMotion;
 
     &::before,
     #player-label-volume {
@@ -330,7 +338,7 @@ $-rightColumnOffsetRatio: math.div($queueWidth, $queuePeek);
 
         position: relative;
         flex: none;
-        width: clamp(180px, $-seekBarFit, 340px);
+        width: $-seekBarWidth;
         height: 14px;
 
         &:has(input:focus-visible) {
