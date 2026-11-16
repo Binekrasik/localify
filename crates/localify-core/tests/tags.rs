@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use localify_core::color::{CoverAccent, DEFAULT_ACCENT, cover_accent};
 use localify_core::source::{ChunkedReader, Counting, FileSource};
-use localify_core::tags::{Tags, read_tags};
+use localify_core::tags::{Audio, Tags, read_tags};
 use localify_core::track::parse_track;
 
 const TITLE: &str = "Fixture Tïtle ✓";
@@ -36,6 +36,15 @@ fn assert_text(tags: &Tags) {
     assert_eq!(tags.album.as_deref(), Some("Fixture Album"));
 }
 
+fn assert_audio(tags: &Tags, container: &'static str, codec: &'static str, bitrate: Option<u32>) {
+    let audio = Audio {
+        container,
+        codec: Some(codec),
+        bitrate,
+    };
+    assert_eq!(tags.audio, Some(audio));
+}
+
 fn assert_cover(tags: &Tags, cover: &str, mime: &str) {
     let picture = tags.picture.as_ref().expect("a cover");
     assert_eq!(picture.data, bytes(cover));
@@ -46,6 +55,7 @@ fn assert_cover(tags: &Tags, cover: &str, mime: &str) {
 fn mp3_id3v23() {
     let t = tags("id3v23.mp3");
     assert_text(&t);
+    assert_audio(&t, "MPEG audio", "MP3", Some(9));
     assert_cover(&t, "cover.png", "image/png");
 }
 
@@ -53,6 +63,7 @@ fn mp3_id3v23() {
 fn mp3_id3v24() {
     let t = tags("id3v24.mp3");
     assert_text(&t);
+    assert_audio(&t, "MPEG audio", "MP3", Some(9));
     assert_cover(&t, "cover.png", "image/png");
 }
 
@@ -60,6 +71,7 @@ fn mp3_id3v24() {
 fn flac() {
     let t = tags("tagged.flac");
     assert_text(&t);
+    assert_audio(&t, "FLAC", "FLAC", Some(1));
     assert_cover(&t, "cover.jpg", "image/jpeg");
 }
 
@@ -67,6 +79,7 @@ fn flac() {
 fn m4a() {
     let t = tags("tagged.m4a");
     assert_text(&t);
+    assert_audio(&t, "MPEG-4", "AAC", None);
     assert_cover(&t, "cover.jpg", "image/jpeg");
 }
 
@@ -74,6 +87,7 @@ fn m4a() {
 fn ogg_vorbis() {
     let t = tags("tagged.ogg");
     assert_text(&t);
+    assert_audio(&t, "Ogg", "Vorbis", Some(14));
     assert_cover(&t, "cover.png", "image/png");
 }
 
@@ -81,6 +95,7 @@ fn ogg_vorbis() {
 fn opus() {
     let t = tags("tagged.opus");
     assert_text(&t);
+    assert_audio(&t, "Ogg", "Opus", Some(3));
     assert_cover(&t, "cover.jpg", "image/jpeg");
 }
 
@@ -105,11 +120,16 @@ fn wav_riff_info() {
     let t = tags("tagged.wav");
     assert_text(&t);
     assert_eq!(t.picture, None);
+    // 8000 samples a second of 8 bits each.
+    assert_audio(&t, "WAV", "PCM", Some(64));
 }
 
 #[test]
 fn untagged() {
-    assert_eq!(tags("untagged.mp3"), Tags::default());
+    let t = tags("untagged.mp3");
+    assert_audio(&t, "MPEG audio", "MP3", Some(8));
+    let without_audio = Tags { audio: None, ..t };
+    assert_eq!(without_audio, Tags::default());
 }
 
 #[test]
@@ -117,6 +137,32 @@ fn artist_list_stands_in_for_a_missing_artist() {
     let t = tags("artists.flac");
     assert_eq!(t.title.as_deref(), Some("Fixture Title"));
     assert_eq!(t.artist.as_deref(), Some("Alice, Bob & Carol"));
+}
+
+#[test]
+fn dates_and_an_empty_stream() {
+    let t = tags("artists.flac");
+    assert_eq!(t.released.as_deref(), Some("2019-03-01"));
+    assert_eq!(t.first_released.as_deref(), Some("2018"));
+    // The file holds no frames, so there is no bitrate to give.
+    assert_audio(&t, "FLAC", "FLAC", None);
+    assert_eq!(tags("tagged.flac").released, None);
+}
+
+#[test]
+fn tags_survive_unreadable_audio() {
+    // The ID3v2 tag alone, without the MPEG frames that name the codec and bitrate.
+    let data = bytes("id3v24.mp3");
+    let size = usize::from(data[9]) | usize::from(data[8]) << 7 | usize::from(data[7]) << 14;
+    let t = read_tags(ChunkedReader::new(&data[..size + 10]), "mp3").unwrap();
+    assert_text(&t);
+    assert_cover(&t, "cover.png", "image/png");
+    let audio = Audio {
+        container: "MPEG audio",
+        codec: None,
+        bitrate: None,
+    };
+    assert_eq!(t.audio, Some(audio));
 }
 
 #[test]
@@ -159,10 +205,18 @@ fn truncated_and_garbage_input_never_panics() {
     }
     for ext in ["mp3", "flac", "m4a", "ogg", "opus", "wav", ""] {
         let garbage: Vec<u8> = (0..4096u32).map(|i| (i * 7919 % 251) as u8).collect();
-        // Without reading audio properties, lofty accepts an MPEG stream it finds no tags in.
+        // Read without its audio properties, an MPEG stream that holds no tags is accepted.
         let result = read_tags(ChunkedReader::new(&garbage[..]), ext);
+        let tagless = |t: &Tags| {
+            let without_audio = Tags {
+                audio: None,
+                ..t.clone()
+            };
+            without_audio == Tags::default()
+                && t.audio.as_ref().is_some_and(|a| a.bitrate.is_none())
+        };
         assert!(
-            result.as_ref().is_err() || result.as_ref().is_ok_and(|t| *t == Tags::default()),
+            result.as_ref().is_err() || result.as_ref().is_ok_and(tagless),
             "{ext}: {result:?}"
         );
     }

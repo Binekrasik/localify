@@ -1,9 +1,10 @@
 # localify-core
 
 The WebAssembly library behind localify's file loading. It reads only the regions of an audio
-file that hold tags (title, artist, album, first embedded picture; via `lofty`), decodes the
-cover to pick the queue row's accent colour (JPEG with DCT-domain downscaling, PNG row by row),
-and pairs picked audio files with `.lrc` lyrics files. It runs in a dedicated worker and reads
+file that hold tags (title, artist, album, release dates, first embedded picture) and the headers
+that give its container, codec and bitrate, all via `lofty`. It decodes the cover to pick the
+queue row's accent colour (JPEG with DCT-domain downscaling, PNG row by row), and pairs picked
+audio files with `.lrc` lyrics files. It runs in a dedicated worker and reads
 `File`s synchronously with `FileReaderSync`.
 
 ## Build
@@ -35,8 +36,8 @@ cargo clippy --target wasm32-unknown-unknown
 The tag-parsing fixtures in `tests/fixtures/` come from `tests/fixtures/generate.sh`.
 
 `examples/scan.rs` parses every audio file under a directory through the same code path as the
-wasm build and prints one JSON line per file (tags, cover size and type, accent, error, timing,
-range reads), with a per-format summary on stderr:
+wasm build and prints one JSON line per file (tags, audio details, cover size and type, accent,
+error, timing, range reads), with a per-format summary on stderr:
 
 ```sh
 cargo run --release --example scan -- ~/Music > scan.jsonl

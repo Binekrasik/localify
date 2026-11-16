@@ -23,6 +23,16 @@ export interface ParsedTrack {
     album: string
     /** The file name's extension, lowercased; '' when it has none. */
     format: string
+    /** The container's name, such as 'Ogg' or 'MPEG-4'; null when the file couldn't be read. */
+    container: string | null
+    /** The codec's name, such as 'Opus' or 'AAC'; null when the audio headers don't give one. */
+    codec: string | null
+    /** The audio stream's average bitrate in kbit/s; null when the audio headers don't give one. */
+    bitrate: number | null
+    /** When this release came out, as the tag spells it: usually 'YYYY', 'YYYY-MM' or 'YYYY-MM-DD', possibly followed by a time. Null without a date tag. */
+    released: string | null
+    /** When the recording first came out, spelled like `released`; null without an original release date tag. */
+    firstReleased: string | null
     /** '#rrggbb'. */
     accentColor: string
     /** The embedded cover's bytes in an ArrayBuffer of their own (not a view of wasm memory), so `cover.buffer` can be transferred. */
@@ -92,6 +102,8 @@ fn track_to_js(track: track::Track) -> JsValue {
         let _ = Reflect::set(&obj, &JsValue::from_str(key), &value);
     };
     let opt_str = |s: Option<String>| s.map_or(JsValue::NULL, |s| JsValue::from_str(&s));
+    let opt_name = |s: Option<&str>| s.map_or(JsValue::NULL, JsValue::from_str);
+    let audio = track.audio.as_ref();
     let (cover, cover_format) = match track.cover {
         Some(picture) => (
             Uint8Array::from(picture.data.as_slice()).into(),
@@ -103,6 +115,16 @@ fn track_to_js(track: track::Track) -> JsValue {
     set("artist", track.artist.into());
     set("album", track.album.into());
     set("format", track.format.into());
+    set("container", opt_name(audio.map(|a| a.container)));
+    set("codec", opt_name(audio.and_then(|a| a.codec)));
+    set(
+        "bitrate",
+        audio
+            .and_then(|a| a.bitrate)
+            .map_or(JsValue::NULL, JsValue::from),
+    );
+    set("released", opt_str(track.released));
+    set("firstReleased", opt_str(track.first_released));
     set("accentColor", color::to_hex(track.accent).into());
     set("cover", cover);
     set("coverFormat", cover_format);

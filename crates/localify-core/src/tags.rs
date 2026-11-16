@@ -1,9 +1,10 @@
-//! Title, artist, album and the first embedded picture of an audio file, read with `lofty`.
+//! Title, artist, album, release dates and the first embedded picture of an audio file, and how
+//! its audio is stored, read with `lofty`.
 //!
-//! The container is detected from the content, falling back to the file extension. Audio
-//! properties are not read, so only the regions holding tags are touched. Each field takes the
-//! first non-empty value across the file's tags, primary tag first; the picture is the first one
-//! found in the same order. A file without an artist but with a list of artists (`ARTISTS` in
+//! The container is detected from the content, falling back to the file extension. Besides the
+//! regions holding tags, only the headers describing the audio stream are read. Each field takes
+//! the first non-empty value across the file's tags, primary tag first; the picture is the first
+//! one found in the same order. A file without an artist but with a list of artists (`ARTISTS` in
 //! Vorbis comments, APE and MP4 freeform atoms, `TXXX:ARTISTS` in ID3v2) gets the list joined as
 //! `A & B` or `A, B & C`.
 
@@ -11,8 +12,11 @@ use std::borrow::Cow;
 use std::io::{Read, Seek};
 
 use lofty::config::ParseOptions;
-use lofty::error::FileParseError;
-use lofty::file::{FileType, TaggedFile, TaggedFileExt};
+use lofty::error::{FileParseError, UnknownFormatError};
+use lofty::file::{AudioFile, FileType, TaggedFile, TaggedFileExt};
+use lofty::iff::wav::{WavFile, WavFormat};
+use lofty::mp4::{Mp4Codec, Mp4File};
+use lofty::mpeg::{Layer, MpegFile};
 use lofty::probe::Probe;
 use lofty::tag::{Accessor, ItemKey, Tag};
 
@@ -25,8 +29,30 @@ pub struct Tags {
     pub artist: Option<String>,
     /// Album title.
     pub album: Option<String>,
+    /// When this release came out, as the tag spells it (usually `YYYY`, `YYYY-MM` or
+    /// `YYYY-MM-DD`, possibly followed by a time): the release date, else the recording date
+    /// (`DATE` in Vorbis comments, `TDRC` in ID3v2, `©day` in MP4), else the year.
+    pub released: Option<String>,
+    /// When the recording first came out, as the tag spells it: the original release date
+    /// (`ORIGINALDATE`, `TDOR`).
+    pub first_released: Option<String>,
     /// The first embedded picture.
     pub picture: Option<Picture>,
+    /// How the audio is stored. `None` only in a default value.
+    pub audio: Option<Audio>,
+}
+
+/// How a file stores its audio.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Audio {
+    /// The container's name, such as `Ogg` or `MPEG-4`.
+    pub container: &'static str,
+    /// The codec's name, such as `Opus` or `AAC`. `None` when the container can hold several
+    /// codecs and the audio headers were unreadable or name one that isn't known here.
+    pub codec: Option<&'static str>,
+    /// The audio stream's average bitrate in kbit/s. `None` when the audio headers were
+    /// unreadable or the stream is empty.
+    pub bitrate: Option<u32>,
 }
 
 /// An embedded picture.
@@ -38,23 +64,120 @@ pub struct Picture {
     pub mime: String,
 }
 
-/// Reads the tags of an audio file whose name ends in `.{extension}` (any case; `""` for none).
+/// Reads the tags and audio details of an audio file whose name ends in `.{extension}` (any
+/// case; `""` for none).
+///
+/// A file whose audio headers can't be read still gives its tags; `audio` then lacks the bitrate,
+/// and the codec too unless the container implies it. That costs a second pass over the tags.
 ///
 /// # Errors
 /// When the container is not recognised from either the content or the extension, when reading
 /// fails, or when the tags are malformed beyond what `lofty` tolerates.
-pub fn read_tags<R: Read + Seek>(reader: R, extension: &str) -> Result<Tags, FileParseError> {
-    let options = ParseOptions::new().read_properties(false);
-    let probe = Probe::new(reader).options(options);
+pub fn read_tags<R: Read + Seek>(mut reader: R, extension: &str) -> Result<Tags, FileParseError> {
+    let probe = Probe::new(&mut reader);
     let probe = match FileType::from_ext(extension) {
         Some(file_type) => probe.set_file_type(file_type),
         None => probe,
     };
-    let mut file = probe.guess_file_type()?.read()?;
-    Ok(collect(&mut file))
+    let file_type = probe
+        .guess_file_type()?
+        .file_type()
+        .ok_or(UnknownFormatError)?;
+    let (mut file, audio) = match read(&mut reader, file_type, true) {
+        Ok(read) => read,
+        // The tags matter more than the audio details, so this error gives way to the retry's.
+        Err(_) => read(&mut reader, file_type, false)?,
+    };
+    Ok(collect(&mut file, audio))
 }
 
-fn collect(file: &mut TaggedFile) -> Tags {
+/// Reads the file from its start, with its audio properties if `with_audio`.
+fn read<R: Read + Seek>(
+    reader: &mut R,
+    file_type: FileType,
+    with_audio: bool,
+) -> Result<(TaggedFile, Audio), FileParseError> {
+    reader.rewind()?;
+    let options = ParseOptions::new().read_properties(with_audio);
+    let (container, mut codec) = names(file_type);
+    // These containers hold several codecs, which only their own property types name. Properties
+    // that weren't read hold defaults, which name no codec for MP4 and a wrong one for the others.
+    let file: TaggedFile = match file_type {
+        FileType::Mp4 => {
+            let file = Mp4File::read_from(reader, options)?;
+            codec = file.properties().codec().and_then(mp4_codec);
+            file.into()
+        }
+        FileType::Mpeg => {
+            let file = MpegFile::read_from(reader, options)?;
+            if with_audio {
+                codec = Some(match file.properties().layer() {
+                    Layer::Layer1 => "MP1",
+                    Layer::Layer2 => "MP2",
+                    Layer::Layer3 => "MP3",
+                });
+            }
+            file.into()
+        }
+        FileType::Wav => {
+            let file = WavFile::read_from(reader, options)?;
+            if with_audio {
+                codec = match file.properties().format() {
+                    WavFormat::PCM => Some("PCM"),
+                    WavFormat::IEEE_FLOAT => Some("PCM (float)"),
+                    WavFormat::Other(_) => None,
+                };
+            }
+            file.into()
+        }
+        _ => Probe::with_file_type(reader, file_type)
+            .options(options)
+            .read()?,
+    };
+    let bitrate = file.properties().audio_bitrate().filter(|&kbps| kbps > 0);
+    Ok((
+        file,
+        Audio {
+            container,
+            codec,
+            bitrate,
+        },
+    ))
+}
+
+/// The container's name, and the codec's when the container holds only one.
+fn names(file_type: FileType) -> (&'static str, Option<&'static str>) {
+    match file_type {
+        FileType::Aac => ("ADTS", Some("AAC")),
+        FileType::Aiff => ("AIFF", None),
+        FileType::Ape => ("APE", Some("Monkey's Audio")),
+        FileType::Flac => ("FLAC", Some("FLAC")),
+        FileType::Mpeg => ("MPEG audio", None),
+        FileType::Mp4 => ("MPEG-4", None),
+        FileType::Mpc => ("Musepack", Some("Musepack")),
+        FileType::Opus => ("Ogg", Some("Opus")),
+        FileType::Vorbis => ("Ogg", Some("Vorbis")),
+        FileType::Speex => ("Ogg", Some("Speex")),
+        FileType::Wav => ("WAV", None),
+        FileType::WavPack => ("WavPack", Some("WavPack")),
+        // `FileType` is non-exhaustive, and custom types come only from resolvers, which this
+        // crate doesn't register.
+        _ => ("Unknown", None),
+    }
+}
+
+fn mp4_codec(codec: Mp4Codec) -> Option<&'static str> {
+    match codec {
+        Mp4Codec::AAC => Some("AAC"),
+        Mp4Codec::ALAC => Some("ALAC"),
+        Mp4Codec::MP3 => Some("MP3"),
+        Mp4Codec::FLAC => Some("FLAC"),
+        // `Mp4Codec` is non-exhaustive.
+        _ => None,
+    }
+}
+
+fn collect(file: &mut TaggedFile, audio: Audio) -> Tags {
     let primary = file.primary_tag_type();
     let mut order: Vec<&Tag> = file.tags().iter().collect();
     // Stable sort: the primary tag first, the rest in file order.
@@ -68,6 +191,16 @@ fn collect(file: &mut TaggedFile) -> Tags {
     let title = first(|t| t.title());
     let artist = first(|t| t.artist()).or_else(|| order.iter().find_map(|tag| joined_artists(tag)));
     let album = first(|t| t.album());
+    let text = |key: ItemKey| {
+        order.iter().find_map(|tag| {
+            let value = tag.get_string(key)?.trim();
+            (!value.is_empty()).then(|| value.to_owned())
+        })
+    };
+    let released = text(ItemKey::ReleaseDate)
+        .or_else(|| text(ItemKey::RecordingDate))
+        .or_else(|| text(ItemKey::Year));
+    let first_released = text(ItemKey::OriginalReleaseDate);
 
     let picture_at = order
         .iter()
@@ -86,7 +219,10 @@ fn collect(file: &mut TaggedFile) -> Tags {
         title,
         artist,
         album,
+        released,
+        first_released,
         picture,
+        audio: Some(audio),
     }
 }
 

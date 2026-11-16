@@ -2,7 +2,7 @@
 
 use crate::color::{self, CoverAccent, Rgb};
 use crate::source::{self, ChunkedReader, RangeSource};
-use crate::tags::{self, Picture};
+use crate::tags::{self, Audio, Picture};
 
 /// Largest lyrics file read, in bytes. LRC files are a few KiB; anything this large is not one,
 /// and reading it would grow wasm memory for good.
@@ -24,6 +24,12 @@ pub struct Track {
     pub album: String,
     /// The file name's extension, lowercased; `""` without one.
     pub format: String,
+    /// When this release came out, as the tag spells it (see [`tags::Tags::released`]).
+    pub released: Option<String>,
+    /// When the recording first came out, as the tag spells it.
+    pub first_released: Option<String>,
+    /// How the audio is stored; `None` when the file couldn't be read.
+    pub audio: Option<Audio>,
     /// The cover's accent, or [`color::DEFAULT_ACCENT`].
     pub accent: Rgb,
     /// The first embedded picture, unless it is larger than 32 MiB.
@@ -39,7 +45,8 @@ pub struct Track {
 /// Parses the audio file `name` read through `audio`, and reads `lyrics` if given.
 ///
 /// `random` in `[0, 1)` picks the accent among equally vivid candidates. Reads only the regions
-/// of `audio` holding tags; reads `lyrics` whole when it is at most 4 MiB, else ignores it.
+/// of `audio` holding tags and the headers describing its audio stream; reads `lyrics` whole when
+/// it is at most 4 MiB, else ignores it.
 pub fn parse_track(
     name: &str,
     audio: impl RangeSource,
@@ -71,6 +78,9 @@ pub fn parse_track(
         artist: tags.artist.unwrap_or_else(|| "Unknown Artist".to_owned()),
         album: tags.album.unwrap_or_default(),
         format,
+        released: tags.released,
+        first_released: tags.first_released,
+        audio: tags.audio,
         accent,
         cover: tags.picture,
         cover_undecoded,
@@ -163,6 +173,7 @@ mod tests {
     fn oversized_cover_is_dropped() {
         let kept = parse_track("a.mp3", &id3_with_cover(64)[..], None::<&[u8]>, 0.0);
         assert_eq!(kept.cover.map(|c| c.data.len()), Some(64));
+        assert_eq!(kept.audio.map(|a| a.container), Some("MPEG audio"));
 
         let file = id3_with_cover(MAX_COVER_BYTES + 1);
         let dropped = parse_track("a.mp3", &file[..], None::<&[u8]>, 0.0);
@@ -184,6 +195,8 @@ mod tests {
         assert_eq!(track.artist, "Unknown Artist");
         assert_eq!(track.album, "");
         assert_eq!(track.format, "mp3");
+        assert_eq!(track.released, None);
+        assert_eq!(track.audio, None);
         assert_eq!(track.accent, color::DEFAULT_ACCENT);
         assert_eq!(track.cover, None);
         assert!(!track.cover_undecoded);

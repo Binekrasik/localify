@@ -55,13 +55,15 @@ ff "${silence[@]}" -c:a libopus -b:a 6k "${tags[@]}" \
     -metadata "METADATA_BLOCK_PICTURE=$(picture_block "$tmp/noise.png" image/png)" big-cover.opus
 ff "${silence[@]}" -c:a libmp3lame -b:a 8k -map_metadata -1 -id3v2_version 0 -write_xing 0 untagged.mp3
 
-# A FLAC stream header with three ARTISTS comments and no ARTIST, which ffmpeg can't write: the
-# STREAMINFO block (8 kHz, mono, 16 bit, no samples) and a last VORBIS_COMMENT block, no frames.
+# A FLAC stream header with three ARTISTS comments and no ARTIST, which ffmpeg can't write, and
+# two dates: the STREAMINFO block (8 kHz, mono, 16 bit, no samples) and a last VORBIS_COMMENT
+# block, no frames.
 python3 -I - artists.flac <<'PY'
 import struct, sys
 streaminfo = struct.pack('>HH', 4096, 4096) + bytes(6) + struct.pack('>Q', 8000 << 44 | 15 << 36) + bytes(16)
 vendor = b'localify fixture'
-comments = [b'TITLE=Fixture Title', b'ARTISTS=Alice', b'ARTISTS=Bob', b'ARTISTS=Carol']
+comments = [b'TITLE=Fixture Title', b'ARTISTS=Alice', b'ARTISTS=Bob', b'ARTISTS=Carol',
+            b'DATE=2019-03-01', b'ORIGINALDATE=2018']
 vorbis = struct.pack('<I', len(vendor)) + vendor + struct.pack('<I', len(comments))
 vorbis += b''.join(struct.pack('<I', len(c)) + c for c in comments)
 block = lambda kind, data: bytes([kind]) + len(data).to_bytes(3, 'big') + data

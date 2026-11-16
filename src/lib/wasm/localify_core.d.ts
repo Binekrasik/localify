@@ -7,6 +7,16 @@ export interface ParsedTrack {
     album: string
     /** The file name's extension, lowercased; '' when it has none. */
     format: string
+    /** The container's name, such as 'Ogg' or 'MPEG-4'; null when the file couldn't be read. */
+    container: string | null
+    /** The codec's name, such as 'Opus' or 'AAC'; null when the audio headers don't give one. */
+    codec: string | null
+    /** The audio stream's average bitrate in kbit/s; null when the audio headers don't give one. */
+    bitrate: number | null
+    /** When this release came out, as the tag spells it: usually 'YYYY', 'YYYY-MM' or 'YYYY-MM-DD', possibly followed by a time. Null without a date tag. */
+    released: string | null
+    /** When the recording first came out, spelled like `released`; null without an original release date tag. */
+    firstReleased: string | null
     /** '#rrggbb'. */
     accentColor: string
     /** The embedded cover's bytes in an ArrayBuffer of their own (not a view of wasm memory), so `cover.buffer` can be transferred. */
