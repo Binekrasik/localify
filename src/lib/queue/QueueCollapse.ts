@@ -1,6 +1,7 @@
 import sqs from '../shortQuerySelector'
 
-export function initQueueCollapse() {
+/** `onCollapse` runs whenever the button collapses the sidebar. */
+export function initQueueCollapse(onCollapse: () => void) {
     const app = sqs<HTMLElement>('#app')
     const content = sqs<HTMLElement>('#contentContainer')
     const container = sqs<HTMLElement>('#queueContainer')
@@ -16,6 +17,7 @@ export function initQueueCollapse() {
         // The pointer is still over the button, so hover alone would hold the sidebar open.
         if (collapsed) container.dataset.revealSuppressed = 'true'
         else delete container.dataset.revealSuppressed
+        if (collapsed) onCollapse()
     })
 
     const allowReveal = () => delete container.dataset.revealSuppressed

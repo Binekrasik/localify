@@ -146,6 +146,16 @@ export class QueueTrackDetails {
     constructor(list: HTMLElement, onResize: () => void) {
         this.#list = list
         this.#onResize = onResize
+        // Pressing anywhere outside the open track's row and panel closes its details. The context menu
+        // doesn't count, as its entries act on the row it was opened on, and neither does the list's scrollbar.
+        document.addEventListener('pointerdown', event => {
+            const open = this.#open
+            if (!open || !(event.target instanceof Element)) return
+            const row = open.entry.track.domElement
+            if (row?.contains(event.target) || open.element.contains(event.target)) return
+            if (event.target.closest('.contextMenu') || this.#onScrollbar(event)) return
+            this.Hide()
+        }, { capture: true })
     }
 
     /** The track whose details are open. */
@@ -245,6 +255,16 @@ export class QueueTrackDetails {
             const order = entry.track.domElement?.style.order
             if (order) element.style.order = order
         }
+    }
+
+    /** Whether `event` lands on the list's scrollbar, classic or overlay. */
+    #onScrollbar(event: PointerEvent) {
+        const list = this.#list
+        if (event.target !== list || list.scrollHeight <= list.clientHeight) return false
+        let right = list.getBoundingClientRect().left + list.clientLeft + list.clientWidth
+        // Overlay scrollbars occupy the right padding without reducing clientWidth.
+        if (list.offsetWidth === list.clientWidth) right -= parseFloat(getComputedStyle(list).paddingRight)
+        return event.clientX >= right
     }
 
     *#all() {

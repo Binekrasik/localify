@@ -78,7 +78,7 @@ export class QueueManager extends Manager {
                 && this.#interaction.SelectedEntries.length > 0
             if (!deselects) this.#details.Hide()
         }, { capture: true })
-        initQueueCollapse()
+        initQueueCollapse(() => this.#details.Hide())
         this.#queueListElement.appendChild(this.#scrollSpacer)
         new ResizeObserver(() => this.#syncScrollRoom()).observe(this.#queueListElement)
         reducedMotion.addEventListener('change', () => {
