@@ -6,6 +6,7 @@ import { QueueTrackEntry } from './QueueTrackEntry'
 import { createElement } from '../domUtils'
 import type { ContextMenuEntry } from '../interaction/ContextMenuEntry'
 import { QueueInteraction } from './QueueInteraction'
+import { QueueTrackDetails } from './QueueTrackDetails'
 import { queueMotion } from './QueueMotion'
 import { reducedMotion } from '../motion'
 import { initQueueCollapse } from './QueueCollapse'
@@ -46,6 +47,10 @@ export class QueueManager extends Manager {
     #historyDivider = createListDecoration('queueHistoryDivider')
     #scrollSpacer = createListDecoration('queueScrollSpacer')
     #interaction = new QueueInteraction(this.#queueListElement, this)
+    #details = new QueueTrackDetails(this.#queueListElement, () => {
+        this.#syncScrollRoom()
+        this.#interaction.LayoutChanged()
+    })
     #addToQueueInput = sqs('#player-add-to-queue') as HTMLInputElement
     #currentBatch: FileParserPool | null = null
     #rowMoves = new Map<HTMLElement, Animation>()
@@ -65,6 +70,14 @@ export class QueueManager extends Manager {
         this.#initHooks()
         this.#initBusListeners()
         this.#interaction.Initialize()
+        // Escape closes one thing at a time: the context menu, then the focused list's selection, then the
+        // details. Capturing reads the selection before the list's own handler clears it.
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Escape' || Managers.ContextMenuManager.IsVisible) return
+            const deselects = this.#queueListElement.contains(document.activeElement)
+                && this.#interaction.SelectedEntries.length > 0
+            if (!deselects) this.#details.Hide()
+        }, { capture: true })
         initQueueCollapse()
         this.#queueListElement.appendChild(this.#scrollSpacer)
         new ResizeObserver(() => this.#syncScrollRoom()).observe(this.#queueListElement)
@@ -162,6 +175,11 @@ export class QueueManager extends Manager {
                 isPlaying: false,
                 accentColor: parsed.accentColor,
                 format: parsed.format,
+                container: parsed.container ?? undefined,
+                codec: parsed.codec ?? undefined,
+                bitrate: parsed.bitrate ?? undefined,
+                released: parsed.released ?? undefined,
+                firstReleased: parsed.firstReleased ?? undefined,
                 coverState: coverImage ? 'loaded' : 'none',
             })
         } catch (err) {
@@ -208,7 +226,9 @@ export class QueueManager extends Manager {
             if (event.button != 2) return
             if (!this.queue.includes(trackEntry)) return
             this.#interaction.SelectForContextMenu(trackEntry)
-            Managers.ContextMenuManager.PopulateContextMenu(this.#getContextMenuEntries(this.#interaction.SelectedEntries))
+            Managers.ContextMenuManager.PopulateContextMenu(
+                this.#getContextMenuEntries(this.#interaction.SelectedEntries, trackEntry),
+            )
             Managers.ContextMenuManager.ShowContextMenu(event.clientX, event.clientY)
         })
 
@@ -235,8 +255,10 @@ export class QueueManager extends Manager {
         row.style.removeProperty('content-visibility')
     }
 
-    #getContextMenuEntries(trackEntries: QueueTrackEntry[]): ContextMenuEntry[] {
+    /** The menu for the selected rows. The details entry acts on `clicked`, the row the menu was opened on. */
+    #getContextMenuEntries(trackEntries: QueueTrackEntry[], clicked: QueueTrackEntry): ContextMenuEntry[] {
         const allPinned = trackEntries.every(entry => entry.isPinned)
+        const detailsOpen = this.#details.Entry === clicked
         return [
             {
                 icon: '/assets/icons/keyboard_double_arrow_up.svg',
@@ -282,6 +304,14 @@ export class QueueManager extends Manager {
                 text: createElement('p', {}, 'Show cover art'),
                 onClick: _ => {
                     this.#showCoverArt(trackEntries)
+                },
+            },
+            {
+                icon: '/assets/icons/info.svg',
+                text: createElement('p', {}, detailsOpen ? 'Hide details' : 'Show details'),
+                onClick: _ => {
+                    if (detailsOpen) this.#details.Hide()
+                    else if (this.queue.includes(clicked)) this.#details.Show(clicked)
                 },
             },
         ]
@@ -449,6 +479,8 @@ export class QueueManager extends Manager {
         }
         if (this.#historyDivider.isConnected)
             positions.set(this.#historyDivider, this.#historyDivider.getBoundingClientRect())
+        // A details panel travels with its row.
+        for (const details of this.#details.Elements) positions.set(details, details.getBoundingClientRect())
         return positions
     }
 
@@ -485,10 +517,10 @@ export class QueueManager extends Manager {
     #syncScrollRoom() {
         const list = this.#queueListElement
         const target = this.#currentRowScrollTop()
-        const lastRow = this.queue.at(-1)?.track.domElement
         let room = 0
-        if (target && lastRow) {
-            const contentBottom = lastRow.offsetTop + lastRow.offsetHeight + parseFloat(getComputedStyle(list).paddingBottom)
+        if (target && this.#scrollSpacer.isConnected) {
+            // The spacer cancels the gap above it, so it starts where the last row, or a panel below it, ends.
+            const contentBottom = this.#scrollSpacer.offsetTop + parseFloat(getComputedStyle(list).paddingBottom)
             room = Math.max(0, target + list.clientHeight - contentBottom)
         }
         this.#scrollSpacer.style.height = `${room}px`
@@ -525,6 +557,7 @@ export class QueueManager extends Manager {
         // Scrolling before the rows are measured lets the move animation carry the scroll too.
         const currentRowScrollTop = this.#currentRowScrollTop()
         if (revealCurrentRow && currentRowScrollTop !== undefined) this.#queueListElement.scrollTop = currentRowScrollTop
+        this.#details.Sync()
         this.#fadeRemovedHistoryDivider(previousPositions.get(this.#historyDivider))
         bus.emit('queue:history-changed', { hasHistory: this.#historyLength > 0 })
         if (!reducedMotion.matches) {
@@ -617,19 +650,22 @@ export class QueueManager extends Manager {
         // Read before any row changes, so the reads don't force a style and layout pass per row.
         const animate = !reducedMotion.matches
         const scroll = this.#scrollOffset()
-        const opacities = animate
-            ? removing.map(entry => entry.track.domElement && getComputedStyle(entry.track.domElement).opacity)
-            : []
-        removing.forEach((entry, index) => {
-            if (entry.track.coverImage) URL.revokeObjectURL(entry.track.coverImage)
-            const element = entry.track.domElement
-            if (!element) return
+        const rows = removing.flatMap(entry => entry.track.domElement ?? [])
+        const opacityOf = (element: HTMLElement) => getComputedStyle(element).opacity
+        const rowOpacities = animate ? rows.map(opacityOf) : []
+        const panelOpacities = new Map(animate ? this.#details.Elements.map(panel => [panel, opacityOf(panel)]) : [])
+        // A removed row's details panel leaves with it.
+        const panels = removing.flatMap(entry => this.#details.Release(entry))
+        const elements = [...rows, ...panels]
+        const opacities = [...rowOpacities, ...panels.map(panel => panelOpacities.get(panel) ?? '1')]
+        for (const entry of removing) if (entry.track.coverImage) URL.revokeObjectURL(entry.track.coverImage)
+        elements.forEach((element, index) => {
             if (!animate) {
                 this.#nearRows.unobserve(element)
                 element.remove()
                 return
             }
-            this.#slideRowOut(element, positions.get(element)!, bounds, scroll, opacities[index]!)
+            this.#slideRowOut(element, positions.get(element)!, bounds, scroll, opacities[index])
         })
         this.SyncQueueChanges(positions, removingPlayingTrack)
 
@@ -638,6 +674,11 @@ export class QueueManager extends Manager {
 
     GetFirstSafeQueueIndex() {
         return this.#historyLength + (this.queue[this.#historyLength]?.track.isPlaying ? 1 : 0)
+    }
+
+    /** The details panels below a row, open or closing. */
+    DetailsOf(entry: QueueTrackEntry) {
+        return this.#details.ElementsOf(entry)
     }
 
     get HistoryLength() {
@@ -703,7 +744,9 @@ export class QueueManager extends Manager {
         const unpinnedIndices = this.queue.flatMap((entry, index) => index >= safeIndex && !entry.isPinned ? [index] : [])
         if (unpinnedIndices.length < 2) return
         const entries = unpinnedIndices.map(index => this.queue[index])
-        const rows = entries.flatMap(entry => entry.track.domElement ?? [])
+        // A details panel leaves and arrives along with its row.
+        const rows = entries.flatMap(entry => [...entry.track.domElement ? [entry.track.domElement] : [],
+            ...this.#details.ElementsOf(entry)])
         const positions = this.#getRowPositions()
         const animate = !reducedMotion.matches
         const bounds = this.#queueListElement.getBoundingClientRect()

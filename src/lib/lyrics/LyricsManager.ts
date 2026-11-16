@@ -1,4 +1,4 @@
-import { getTimestampTag } from './lrcutils'
+import { getTimestampTag, timedLinePattern } from './lrcutils'
 import sqs, { sqsa } from '../shortQuerySelector'
 import { Manager } from '../Manager'
 import { bus, updateManager } from '../state/Managers'
@@ -87,7 +87,7 @@ export class LyricsManager extends Manager {
         let index = 0
 
         this.state.text.split('\n').forEach((line) => {
-            const match = line.match(/\[(\d{2}):(\d{2}\..*?)\](.*)/)
+            const match = line.match(timedLinePattern)
 
             if (match) {
                 const minutes = parseInt(match[1], 10)

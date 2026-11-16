@@ -67,6 +67,8 @@ $queueFooterHeight: $playerHeight;
 // Extra space that pushes track text past the collapsed sidebar's visible edge.
 $queuePeekTextOffset: 25px;
 $queueListPadding: 20px;
+// A fixed width lets a row use the list's padding so a classic scrollbar doesn't narrow it.
+$queueRowWidth: $queueWidth - 1px - 2 * $queueListPadding;
 // Space between a row's outline and its content, the same on every side.
 $queueRowPadding: 10px;
 $queueCoverSize: 50px;
@@ -75,6 +77,8 @@ $queueRowOutline: 2px;
 $queueRowPlayingShift: 6px;
 $queueActiveStroke: 0.1;
 $queueBorderColor: colors.accent(0.2);
+// Shared by a row whose details are open and its details panel, which read as one box.
+$queueDetailsBackground: colors.accent(0.06);
 $queueHistoryOpacity: 0.5;
 $queueHistoryDashLength: 10px;
 
@@ -84,6 +88,8 @@ $queueExpoOut: cubic-bezier(0, 0.78, 0.17, 1);
 $queueHoverMotion: 1s cubic-bezier(0, 1, 0.3, 1);
 // Matches the selection highlight's fade-in in QueueInteraction.
 $queueSelectionFade: 0.18s;
+// Matches the selection highlight's fade-out in QueueInteraction.
+$queueSelectionExit: 0.15s $queueRowMotion;
 $queueRowContentShift: translate 0.2s $queueExpoOut;
 // How far the playing row's light has spread, and where the mask's soft leading edge begins behind it.
 $queueFloodEdge: 40%;
@@ -184,7 +190,8 @@ $queueDescenderRoom: 6px;
 
             .queueEmptyIndicator,
             #queueHeader h1,
-            #loadingBar .label {
+            #loadingBar .label,
+            .queueTrackDetails .panel {
                 opacity: 0;
             }
 
@@ -204,6 +211,15 @@ $queueDescenderRoom: 6px;
 
                 img {
                     margin-right: $queuePeekTextOffset;
+                }
+
+                // The details panel fades out with the row text, and the row's box goes with it.
+                &[data-details="true"] {
+                    background: transparent;
+
+                    &::after {
+                        opacity: 0;
+                    }
                 }
             }
         }
@@ -455,6 +471,203 @@ $queueDescenderRoom: 6px;
             margin-top: -10px;
         }
 
+        // QueueTrackDetails puts this right after its row, in the row's flex order, and animates its height
+        // as it opens and closes. The panel sits at its bottom, so it slides out from under the row.
+        .queueTrackDetails {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            flex-shrink: 0;
+            width: $queueRowWidth;
+            overflow: clip;
+
+            // Cancels the list's gap, so the panel meets its row.
+            margin-top: -10px;
+
+            &[data-closing="true"],
+            &[data-removed="true"] {
+                pointer-events: none;
+            }
+
+            .panel {
+                position: relative;
+                flex-shrink: 0;
+                display: flex;
+                flex-direction: column;
+                padding: 0 12px 2px;
+
+                // Continues the row's outline, which is open at the bottom.
+                border: $queueRowOutline solid colors.accent(0.25);
+                border-top: none;
+                background: $queueDetailsBackground;
+
+                color: colors.$foreground;
+                font-size: 13px;
+                font-weight: 600;
+                line-height: 16px;
+
+                cursor: default;
+                user-select: text;
+
+                // The collapsed sidebar shows only the covers, so the panel fades out with the row text. When its
+                // row is deselected, the border and background fade back in as the highlight fades out over them.
+                transition:
+                    opacity $queueCollapseMotion,
+                    background-color $queueSelectionExit,
+                    border-color $queueSelectionExit;
+            }
+
+            .close {
+                @include queueIconControl;
+
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                margin: 0;
+
+                .icon {
+                    width: 18px;
+                    height: 18px;
+                }
+            }
+
+            section {
+                display: grid;
+                grid-template-columns: 22px minmax(0, 1fr);
+                column-gap: 12px;
+                padding: 12px 0;
+
+                // The first line divides the panel from its row.
+                border-top: 1px solid colors.accent(0.12);
+
+                > .icon {
+                    width: 22px;
+                    height: 22px;
+
+                    // Centres the icon on the first row's text.
+                    margin-top: -3px;
+                }
+            }
+
+            dl {
+                display: grid;
+                grid-template-columns: 96px minmax(0, 1fr);
+                gap: 8px 10px;
+                margin: 0;
+            }
+
+            dt {
+                color: rgba(colors.$foreground, 0.5);
+            }
+
+            dd {
+                min-width: 0;
+                margin: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+
+                &[data-unknown="true"] {
+                    color: rgba(colors.$foreground, 0.35);
+                }
+            }
+
+            .lyricsKind,
+            .loudness {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            // Three bars, lit up to the lyrics' level: plain, synced, word-synced.
+            .lyricsLevel {
+                display: flex;
+                align-items: flex-end;
+                gap: 2px;
+                height: 12px;
+
+                i {
+                    width: 3px;
+                    border-radius: 1px;
+                    background: colors.accent(0.2);
+
+                    &:nth-child(1) {
+                        height: 4px;
+                    }
+
+                    &:nth-child(2) {
+                        height: 8px;
+                    }
+
+                    &:nth-child(3) {
+                        height: 12px;
+                    }
+                }
+
+                &[data-level="1"] i:nth-child(-n + 1),
+                &[data-level="2"] i:nth-child(-n + 2),
+                &[data-level="3"] i {
+                    background: colors.$accent;
+                }
+            }
+
+            // A section whose values don't exist yet.
+            section[data-placeholder="true"] {
+                > .icon {
+                    opacity: 0.45;
+                }
+
+                dd {
+                    color: rgba(colors.$foreground, 0.35);
+                }
+
+                .meter {
+                    flex: 1;
+                    height: 4px;
+                    background: repeating-linear-gradient(
+                        90deg,
+                        colors.accent(0.3) 0 4px,
+                        transparent 4px 8px
+                    );
+                }
+
+                .note {
+                    grid-column: 2;
+                    margin-top: 8px;
+                    color: rgba(colors.$foreground, 0.35);
+                    font-size: 12px;
+                    font-weight: 500;
+                }
+            }
+        }
+
+        // A selected row's highlight reaches over its panels, the one open and any still closing, and paints
+        // the box's background and outline. The border keeps its width, so the panel's content stays put.
+        .queueItem[data-selected="true"] + .queueTrackDetails,
+        .queueItem[data-selected="true"] + .queueTrackDetails + .queueTrackDetails {
+            .panel {
+                border-color: transparent;
+                background-color: transparent;
+
+                // The border holds and fades as the row's outline does, so the row and its panel match while
+                // the highlight fades in.
+                transition:
+                    opacity $queueCollapseMotion,
+                    background-color 0.3s $queueRowMotion,
+                    border-color $queueSelectionFade $queueRowMotion $queueSelectionFade;
+            }
+        }
+
+        // A row inside a multi-row highlight drops its outline at once, and so does its panel.
+        .queueItem[data-selected="true"][data-grouped="true"] + .queueTrackDetails,
+        .queueItem[data-selected="true"][data-grouped="true"] + .queueTrackDetails + .queueTrackDetails {
+            .panel {
+                transition:
+                    opacity $queueCollapseMotion,
+                    background-color 0.3s $queueRowMotion;
+            }
+        }
+
         .queueItem {
             // The row's outlines are drawn inside its padding.
             padding: $queueRowPadding + $queueRowOutline;
@@ -465,8 +678,7 @@ $queueDescenderRoom: 6px;
             position: relative;
             flex-shrink: 0;
 
-            // A fixed width lets the row use the list's padding so a classic scrollbar doesn't narrow it.
-            width: $queueWidth - 1px - 2 * $queueListPadding;
+            width: $queueRowWidth;
 
             // Rows away from the viewport skip styling, painting and hit testing, so a frame costs the
             // same however long the queue is. A skipped row's content keeps the height QueueManager
@@ -535,8 +747,29 @@ $queueDescenderRoom: 6px;
                 transition-duration: 0s;
             }
 
-            &:hover::after {
+            // A row with open details has an outline and background of its own, which fade back in as the
+            // highlight fades out over them, so the box doesn't brighten while both show.
+            &[data-details="true"][data-hover-instant="true"] {
+                transition:
+                    background-color $queueSelectionExit,
+                    opacity 0.3s $queueRowMotion;
+
+                &::after {
+                    transition: opacity $queueSelectionExit;
+                }
+            }
+
+            // A row whose details are open keeps its outline, which the details panel's border continues.
+            &:hover::after,
+            &[data-details="true"]::after {
                 opacity: 1;
+            }
+
+            &[data-details="true"] {
+                &::before,
+                &::after {
+                    border-bottom-width: 0;
+                }
             }
 
             // The hover border holds until the selection highlight has faded in over it.
@@ -581,6 +814,11 @@ $queueDescenderRoom: 6px;
                     opacity: 0;
                     transition-duration: 0.18s, 0.3s;
                 }
+            }
+
+            // A selected row leaves its background to the selection highlight.
+            &[data-details="true"]:not([data-selected="true"]) {
+                background: $queueDetailsBackground;
             }
 
             &[data-dragging="true"] {

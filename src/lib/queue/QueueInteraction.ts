@@ -26,7 +26,12 @@ interface Bounds {
 interface RowLayout {
     /** Row bounds in the list's scroll coordinates, in queue order. */
     rows: Map<Element, Bounds>;
-    /** Rows whose own transform is animating, which are not where layout puts them. */
+    /** The same rows, each reaching down over its details panels. A selection covers a row's panels too. */
+    extents: Map<Element, Bounds>;
+    /**
+     * Rows whose bounds hold for this frame only: those whose own transform is animating, which are not where
+     * layout puts them, and those below an element whose height is animating.
+     */
     moving: Set<Element>;
     scrollHeight: number;
 }
@@ -198,6 +203,12 @@ export class QueueInteraction {
         this.#scheduleSelectionHighlights();
     }
 
+    /** Something in the list changed size and moved the rows below it, which the highlights follow. */
+    LayoutChanged() {
+        this.#rowLayoutCache = undefined;
+        if (this.#selected.size) this.#renderSelectionHighlights();
+    }
+
     QueueChanged() {
         this.#rowLayoutCache = undefined;
         this.CancelGesture();
@@ -365,6 +376,7 @@ export class QueueInteraction {
         const scrollHeight = this.#element.scrollHeight;
         if (this.#rowLayoutCache?.scrollHeight === scrollHeight) return this.#rowLayoutCache;
         const moving = new Set<Element>();
+        const resizing: Element[] = [];
         for (const animation of this.#element.getAnimations({ subtree: true })) {
             const effect = animation.effect;
             if (
@@ -374,16 +386,33 @@ export class QueueInteraction {
                 effect.target?.parentElement !== this.#element
             )
                 continue;
-            if (effect.getKeyframes().some((frame) => "translate" in frame || "transform" in frame))
+            const frames = effect.getKeyframes();
+            if (frames.some((frame) => "translate" in frame || "transform" in frame))
                 moving.add(effect.target);
+            if (frames.some((frame) => "height" in frame)) resizing.push(effect.target);
         }
         const origin = this.#listOrigin();
         const rows = new Map<Element, Bounds>();
+        const extents = new Map<Element, Bounds>();
         for (const entry of this.#queue.queue) {
             const element = entry.track.domElement;
-            if (element) rows.set(element, this.#contentBounds(element, origin));
+            if (!element) continue;
+            const bounds = this.#contentBounds(element, origin);
+            rows.set(element, bounds);
+            const extent = { ...bounds };
+            for (const panel of this.#queue.DetailsOf(entry)) {
+                extent.bottom = Math.max(extent.bottom, this.#contentBounds(panel, origin).bottom);
+                // A row whose panel resizes changes its extent every frame.
+                if (resizing.includes(panel)) moving.add(element);
+            }
+            extents.set(element, extent);
         }
-        const layout = { rows, moving, scrollHeight };
+        // An element that grows or shrinks moves every row below it.
+        if (resizing.length) {
+            const top = Math.min(...resizing.map((element) => this.#contentBounds(element, origin).top));
+            for (const [element, bounds] of rows) if (bounds.top >= top) moving.add(element);
+        }
+        const layout = { rows, extents, moving, scrollHeight };
         // A moving row's bounds hold for one frame only.
         this.#rowLayoutCache = moving.size ? undefined : layout;
         return layout;
@@ -412,20 +441,23 @@ export class QueueInteraction {
         });
     }
 
-    /** Runs of selected rows that sit next to each other, each of which one highlight covers. */
+    /**
+     * Runs of selected rows that sit next to each other, each of which one highlight covers. A row's details
+     * panel belongs to the row, so rows on either side of an open panel still form one run.
+     */
     #selectionGroups(layout: RowLayout) {
         const groups: SelectionGroup[] = [];
         let entries = this.#queue.queue;
         // Rows in the middle of a move are out of queue order.
         if (layout.moving.size)
             entries = [...entries].sort((a, b) =>
-                (layout.rows.get(a.track.domElement!)?.top ?? 0) - (layout.rows.get(b.track.domElement!)?.top ?? 0),
+                (layout.extents.get(a.track.domElement!)?.top ?? 0) - (layout.extents.get(b.track.domElement!)?.top ?? 0),
             );
         const dragged = this.#gesture?.kind === "dragging" ? this.#gesture.dragged : undefined;
         let group: SelectionGroup | undefined;
         for (const entry of entries) {
             const element = entry.track.domElement;
-            const bounds = element && layout.rows.get(element);
+            const bounds = element && layout.extents.get(element);
             if (!element || !bounds) continue;
             if (!this.#selected.has(entry)) {
                 group = undefined;
@@ -676,7 +708,7 @@ export class QueueInteraction {
             !event.isPrimary ||
             event.pointerType === "touch" ||
             this.#gesture ||
-            (event.target instanceof Element && event.target.closest(".queuePlayButton"))
+            (event.target instanceof Element && event.target.closest(".queuePlayButton, .queueTrackDetails"))
         )
             return;
         const bounds = this.#element.getBoundingClientRect();
@@ -872,12 +904,12 @@ export class QueueInteraction {
 
     /** Selects every row the pointer has swept past vertically since the gesture began. */
     #updateDragSelection(gesture: QueueGesture & { kind: "selecting" }) {
-        const { rows } = this.#rowLayout();
+        const { extents } = this.#rowLayout();
         const pointer = this.#contentPosition(gesture.pointer);
         const top = Math.min(gesture.origin.y, pointer.y);
         const bottom = Math.max(gesture.origin.y, pointer.y);
         const entries = this.#queue.queue.filter((entry) => {
-            const row = rows.get(entry.track.domElement!);
+            const row = extents.get(entry.track.domElement!);
             return row && row.top <= bottom && row.bottom >= top;
         });
         this.#setSelection(

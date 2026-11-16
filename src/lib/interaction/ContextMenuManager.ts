@@ -94,6 +94,10 @@ export class ContextMenuManager extends Manager {
         })
     }
 
+    get IsVisible() {
+        return this.#menuElement.getAttribute('data-visible') === 'true'
+    }
+
     HideContextMenu() {
         for (const animation of this.#entryArrivals) animation.pause()
         this.#menuElement.setAttribute('data-visible', 'false')

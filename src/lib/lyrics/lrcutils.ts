@@ -1,3 +1,17 @@
+/** A lyrics line that starts at a time: `[mm:ss.xx]` and the text after it. */
+export const timedLinePattern = /\[(\d{2}):(\d{2}\..*?)\](.*)/
+
+/** A time inside a line, `<mm:ss.xx>`, which says when the word after it starts. */
+const wordTimePattern = /<\d{2}:\d{2}\.\d+>/
+
+export type LyricsKind = 'plain' | 'synced' | 'word-synced'
+
+/** How finely lyrics text is timed: per word, per line, or not at all. */
+export function getLyricsKind(text: string): LyricsKind {
+    if (!timedLinePattern.test(text)) return 'plain'
+    return wordTimePattern.test(text) ? 'word-synced' : 'synced'
+}
+
 export function getTimestampTag(time: number): string {
     // help
     // i love string manipulation
