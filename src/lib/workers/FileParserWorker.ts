@@ -1,17 +1,18 @@
-import init, { accentFromRgba, parseTrack, planBatch, type ParsedTrack } from '../wasm/localify_core'
+import { accentFromRgba, initSync, parseTrack, planBatch, type ParsedTrack } from '../wasm/localify_core'
 import type { FileParserRequest, FileParserResponse } from './FileParserMessages'
 
 const DEFAULT_ACCENT_COLOR = '#7050fd'
 const COLOR_SAMPLE_SIZE = 100
 
-const ready = init()
-
 self.onmessage = async (event: MessageEvent<FileParserRequest>) => {
     const request = event.data
-    try {
-        await ready
-    } catch (err) {
-        reply({ type: 'failed', message: `Failed to load the parser: ${(err as Error).message}` })
+    if (request.type === 'init') {
+        try {
+            initSync({ module: request.module })
+        } catch (err) {
+            reply({ type: 'failed', message: `Failed to load the parser: ${(err as Error).message}` })
+            self.close()
+        }
         return
     }
 

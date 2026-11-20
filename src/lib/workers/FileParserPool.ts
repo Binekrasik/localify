@@ -1,7 +1,25 @@
 import type { ParsedTrack } from '../wasm/localify_core'
+import parserWasmUrl from '../wasm/localify_core_bg.wasm?url'
 import type { FileParserRequest, FileParserResponse } from './FileParserMessages'
+import FileParserWorker from './FileParserWorker?worker&inline'
 
 const MAX_WORKERS = 4
+let parserModule: Promise<WebAssembly.Module> | undefined
+
+function loadFileParserModule() {
+    return parserModule ??= fetch(parserWasmUrl).then(async response => {
+        if (!response.ok) throw new Error(`Failed to download the file parser (${response.status})`)
+        return WebAssembly.compile(await response.arrayBuffer())
+    }).catch(error => {
+        parserModule = undefined
+        throw error
+    })
+}
+
+export function preloadFileParser() {
+    // A file batch retries the download and reports any error when it needs the parser.
+    void loadFileParserModule().catch(() => {})
+}
 
 export interface ParsedFile {
     /** The track's position in the batch plan. */
@@ -29,6 +47,7 @@ export interface FileParserPoolHandlers {
 export class FileParserPool {
     #files: File[]
     #handlers: FileParserPoolHandlers
+    #parserModule!: WebAssembly.Module
     #workers: Worker[] = []
     #plan: Int32Array = new Int32Array()
     #total = 0
@@ -39,15 +58,20 @@ export class FileParserPool {
     constructor(files: File[], handlers: FileParserPoolHandlers) {
         this.#files = files
         this.#handlers = handlers
+        void this.#planBatch()
+    }
+
+    async #planBatch() {
         try {
+            this.#parserModule = await loadFileParserModule()
+            if (this.#ended) return
             this.#send(this.#spawn(), {
                 type: 'plan',
-                names: files.map(file => file.name),
-                types: files.map(file => file.type),
+                names: this.#files.map(file => file.name),
+                types: this.#files.map(file => file.type),
             })
         } catch (error) {
-            // Reported after the constructor returns, when the caller holds the pool.
-            queueMicrotask(() => this.#fail(error))
+            this.#fail(error)
         }
     }
 
@@ -56,11 +80,12 @@ export class FileParserPool {
     }
 
     #spawn() {
-        const worker = new Worker(new URL('./FileParserWorker.ts', import.meta.url), { type: 'module' })
+        const worker = new FileParserWorker()
         worker.onmessage = (event: MessageEvent<FileParserResponse>) => this.#receive(worker, event.data)
         worker.onerror = event => this.#fail(event)
         worker.onmessageerror = () => this.#fail(new Error('A file parser reply could not be read'))
         this.#workers.push(worker)
+        this.#send(worker, { type: 'init', module: this.#parserModule })
         return worker
     }
 

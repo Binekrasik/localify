@@ -2,6 +2,8 @@ import type { ParsedTrack } from '../wasm/localify_core'
 
 /** Messages FileParserPool sends to a FileParserWorker. */
 export type FileParserRequest =
+    /** Gives a new worker its own instance of the compiled parser. */
+    | { type: 'init'; module: WebAssembly.Module }
     /** Asks for the batch plan of the picked files, given their names and MIME types in pick order. */
     | { type: 'plan'; names: string[]; types: string[] }
     /** Asks for one track; `index` is its position in the plan. */

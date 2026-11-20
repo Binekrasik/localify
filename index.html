@@ -3,8 +3,10 @@
 
 <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/src/assets/icons/graphic_eq.svg?inline" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preload" href="/src/assets/fonts/instrument-sans.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/src/lib/wasm/localify_core_bg.wasm" as="fetch" type="application/wasm" crossorigin fetchpriority="low" />
     <link rel="stylesheet" href="/src/styles/app.scss">
     <title>localify</title>
 </head>
@@ -25,8 +27,8 @@
                 <header id="queueHeader">
                     <h1>Queue</h1>
                     <button id="queue-button-collapse" type="button" aria-label="Collapse queue" aria-pressed="false" title="Collapse queue">
-                        <span class="icon iconCollapse" style="--icon: url('/assets/icons/right_panel_close.svg')"></span>
-                        <span class="icon iconExpand" style="--icon: url('/assets/icons/right_panel_open.svg')"></span>
+                        <span class="icon iconCollapse" data-icon="right_panel_close"></span>
+                        <span class="icon iconExpand" data-icon="right_panel_open"></span>
                     </button>
                 </header>
 
@@ -42,10 +44,10 @@
 
                     <div class="queueActions">
                         <button id="player-button-shuffle" type="button" aria-label="Shuffle queue" title="Shuffle queue">
-                            <span class="icon" style="--icon: url('/assets/icons/shuffle.svg')"></span>
+                            <span class="icon" data-icon="shuffle"></span>
                         </button>
                         <label data-type="file" tabindex="0" role="button" aria-label="Add files to queue" title="Add files to queue">
-                            <span class="icon" style="--icon: url('/assets/icons/playlist_add.svg')"></span>
+                            <span class="icon" data-icon="playlist_add"></span>
                             <input type="file" accept=".lrc,.mp3,.wav,.ogg,.flac,.m4a,.opus" id="player-add-to-queue" multiple />
                         </label>
                     </div>
@@ -69,10 +71,10 @@
             <div class="transport">
                 <div class="controls">
                     <button id="player-button-sync" type="button" title="Sync lyrics" aria-label="Sync lyrics">
-                        <span class="icon" style="--icon: url('/assets/icons/sync_alt.svg')"></span>
+                        <span class="icon" data-icon="sync_alt"></span>
                     </button>
                     <button id="player-button-previous" type="button" aria-label="Previous track" disabled>
-                        <span class="icon" style="--icon: url('/assets/icons/skip_previous.svg')"></span>
+                        <span class="icon" data-icon="skip_previous"></span>
                     </button>
                     <button id="player-button-play" type="button" aria-label="Play" aria-busy="false" data-loading="false">
                         <svg class="playSpinner" viewBox="0 0 40 40" aria-hidden="true">
@@ -80,7 +82,7 @@
                         </svg>
                     </button>
                     <button id="player-button-play-next" type="button" aria-label="Next track">
-                        <span class="icon" style="--icon: url('/assets/icons/skip_next.svg')"></span>
+                        <span class="icon" data-icon="skip_next"></span>
                     </button>
                 </div>
 
@@ -100,7 +102,7 @@
             </div>
 
             <label id="player-label-volume" title="Volume">
-                <span class="icon" style="--icon: url('/assets/icons/volume_up.svg')"></span>
+                <span class="icon" data-icon="volume_up"></span>
                 <input id="player-slider-volume" type="range" min="0" max="100" value="50" aria-label="Volume" />
             </label>
         </div>

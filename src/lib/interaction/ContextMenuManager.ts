@@ -81,7 +81,7 @@ export class ContextMenuManager extends Manager {
                 const icon = document.createElement('span')
                 icon.className = 'icon'
                 icon.setAttribute('aria-hidden', 'true')
-                icon.style.setProperty('--icon', `url('${entry.icon}')`)
+                icon.dataset.icon = entry.icon
                 element.appendChild(icon)
             }
             element.appendChild(entry.text)

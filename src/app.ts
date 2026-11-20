@@ -1,4 +1,7 @@
 import { Managers } from './lib/state/Managers'
+import { preloadFileParser } from './lib/workers/FileParserPool'
+
+preloadFileParser()
 
 Managers.LyricsManager.Initialize()
 Managers.PlayerManager.Initialize()

@@ -205,7 +205,7 @@ export class QueueManager extends Manager {
             <div class="trackInfo">
                 <div class="trackHeader">
                     <p class="name"><span class="nameText">${track.title}</span></p>
-                    <span class="queuePinIndicator" role="img" aria-label="Pinned" title="Pinned"></span>
+                    <span class="queuePinIndicator" data-icon="push_pin_filled" role="img" aria-label="Pinned" title="Pinned"></span>
                 </div>
                 <p class="trackDetails" data-loaded="${Boolean(track.lyrics)}">
                     <span class="artist">${track.artist}</span>
@@ -261,28 +261,28 @@ export class QueueManager extends Manager {
         const detailsOpen = this.#details.Entry === clicked
         return [
             {
-                icon: '/assets/icons/keyboard_double_arrow_up.svg',
+                icon: 'keyboard_double_arrow_up',
                 text: createElement('p', {}, 'Move to top'),
                 onClick: _ => {
                     this.#moveTracksToTop(trackEntries)
                 },
             },
             {
-                icon: '/assets/icons/arrow_upward.svg',
+                icon: 'arrow_upward',
                 text: createElement('p', {}, 'Move up'),
                 onClick: _ => {
                     this.#moveTracksByOne(trackEntries, -1)
                 },
             },
             {
-                icon: '/assets/icons/arrow_downward.svg',
+                icon: 'arrow_downward',
                 text: createElement('p', {}, 'Move down'),
                 onClick: _ => {
                     this.#moveTracksByOne(trackEntries, 1)
                 },
             },
             {
-                icon: '/assets/icons/push_pin.svg',
+                icon: 'push_pin',
                 text: createElement('p', {}, allPinned ? 'Unpin track' : 'Pin track'),
                 onClick: _ => {
                     for (const entry of trackEntries) {
@@ -293,21 +293,21 @@ export class QueueManager extends Manager {
                 },
             },
             {
-                icon: '/assets/icons/delete.svg',
+                icon: 'delete',
                 text: createElement('p', {}, 'Remove from queue'),
                 onClick: _ => {
                     this.RemoveTracksFromQueue(trackEntries)
                 },
             },
             {
-                icon: '/assets/icons/view_image.svg',
+                icon: 'view_image',
                 text: createElement('p', {}, 'Show cover art'),
                 onClick: _ => {
                     this.#showCoverArt(trackEntries)
                 },
             },
             {
-                icon: '/assets/icons/info.svg',
+                icon: 'info',
                 text: createElement('p', {}, detailsOpen ? 'Hide details' : 'Show details'),
                 onClick: _ => {
                     if (detailsOpen) this.#details.Hide()
@@ -325,12 +325,12 @@ export class QueueManager extends Manager {
         ]
         return [
             ...options.map(({ sortBy, icon, label }) => ({
-                icon: `/assets/icons/${icon}.svg`,
+                icon,
                 text: createElement('p', {}, label),
                 onClick: () => this.SortQueue(sortBy),
             })),
             {
-                icon: '/assets/icons/shuffle.svg',
+                icon: 'shuffle',
                 text: createElement('p', {}, 'Shuffle randomly'),
                 onClick: () => this.ShuffleQueue(),
             },

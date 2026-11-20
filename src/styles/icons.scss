@@ -1,0 +1,23 @@
+@use './colors.scss' as colors;
+
+// Vite embeds these masks in the startup stylesheet, including icons in hidden controls.
+$-icons: album, arrow_downward, arrow_upward, artist, audio_file, close, delete, graphic_eq, info,
+    keyboard_double_arrow_up, lyrics, palette, playlist_add, push_pin, push_pin_filled,
+    right_panel_close, right_panel_open, shuffle, skip_next, skip_previous, sort_by_alpha, sync_alt,
+    view_image, volume_up;
+
+@each $icon in $-icons {
+    [data-icon='#{$icon}'] {
+        --icon: url('../assets/icons/#{$icon}.svg?inline');
+    }
+}
+
+.icon {
+    display: block;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    background: colors.$accent;
+    mask: var(--icon) center / contain no-repeat;
+    pointer-events: none;
+}

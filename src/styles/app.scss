@@ -4,11 +4,11 @@
 @forward './contextMenu.scss';
 @forward './appOverlay.scss';
 @forward './loadingBar.scss';
+@forward './fonts.scss';
+@forward './icons.scss';
 
 @use './colors.scss' as colors;
 @use './layout.scss' as *;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@600&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 
 body {
     font-family: 'Instrument Sans';
@@ -42,16 +42,6 @@ body {
     syntax: '<color>';
     initial-value: #000;
     inherits: false;
-}
-
-.icon {
-    display: block;
-    flex: none;
-    width: 24px;
-    height: 24px;
-    background: colors.$accent;
-    mask: var(--icon) center / contain no-repeat;
-    pointer-events: none;
 }
 
 // Drawn by PlayPauseIcon. The stroke rounds the corners of its polygons.

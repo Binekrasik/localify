@@ -860,7 +860,7 @@ $queueDescenderRoom: 6px;
                 width: 20px;
                 height: 20px;
                 background: colors.$accent;
-                mask: url('/assets/icons/push_pin_filled.svg') center / contain no-repeat;
+                mask: var(--icon) center / contain no-repeat;
                 opacity: 0.7;
             }
 

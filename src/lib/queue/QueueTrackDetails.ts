@@ -27,7 +27,7 @@ function element<T extends keyof HTMLElementTagNameMap>(tag: T, className?: stri
 function icon(name: string) {
     const node = element('span', 'icon')
     node.setAttribute('aria-hidden', 'true')
-    node.style.setProperty('--icon', `url('/assets/icons/${name}.svg')`)
+    node.dataset.icon = name
     return node
 }
 
